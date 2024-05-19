@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -166,4 +167,114 @@ func TestReplaceRealistic(t *testing.T) {
 			string(expected),
 		)
 	}
+}
+
+func TestReplaceDelete(t *testing.T) {
+	content := &Content{
+		original: []rune("hey"),
+		add:      []rune{},
+		root:     &Piece{0, 3, original, nil},
+		length:   3,
+	}
+
+	content.replace([]rune{}, 0, 1)
+
+	expected := []rune("ey")
+	final := content.calculate_content()
+	if !rune_cmp(expected, final) {
+		t.Fatalf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	} else {
+		t.Logf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	}
+
+	content = &Content{
+		original: []rune("hey"),
+		add:      []rune{},
+		root:     &Piece{0, 3, original, nil},
+		length:   3,
+	}
+
+	content.replace([]rune{}, 1, 2)
+
+	expected = []rune("hy")
+	final = content.calculate_content()
+	if !rune_cmp(expected, final) {
+		t.Fatalf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	} else {
+		t.Logf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	}
+
+	content = &Content{
+		original: []rune("hey"),
+		add:      []rune{},
+		root:     &Piece{0, 3, original, nil},
+		length:   3,
+	}
+
+	content.replace([]rune{}, 2, 3)
+
+	expected = []rune("he")
+	final = content.calculate_content()
+	if !rune_cmp(expected, final) {
+		t.Fatalf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	} else {
+		t.Logf(
+			"\nFinal String: %s\nExpected String: %s",
+			string(final),
+			string(expected),
+		)
+	}
+}
+
+func TestReplaceRepeatDelete(t *testing.T) {
+	content := &Content{
+		original: []rune("Hello, world!"),
+		add:      []rune{},
+		root:     &Piece{0, 13, original, nil},
+		length:   13,
+	}
+	content.replace([]rune{}, 0, 1)
+	content.replace([]rune{}, 0, 1)
+	content.replace([]rune{}, 0, 1)
+}
+
+func TestReplaceAddDelete(t *testing.T) {
+  fmt.Println("MAIN TEST")
+	content := &Content{
+		original: []rune("here"),
+		add:      []rune{},
+		root:     &Piece{0, 4, original, nil},
+		length:   4,
+	}
+
+	content.print_pieces()
+  fmt.Println(content.calculate_content())
+  fmt.Println()
+	content.replace([]rune{}, 2, 3)
+	content.print_pieces()
+  fmt.Println(content.calculate_content())
+  fmt.Println()
+	content.replace([]rune{}, 1, 2)
+	content.print_pieces()
+  fmt.Println(content.calculate_content())
 }

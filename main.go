@@ -8,7 +8,6 @@ import (
 
 func main() {
 	editor := initialize_editor("test.txt")
-	content := editor.content
 
 	def_style := tcell.StyleDefault.
 		Foreground(tcell.ColorReset).
@@ -37,18 +36,16 @@ func main() {
 
 	defer quit()
 
-	cursor := editor.cursor
-
 	for {
 		// edit content based on new state
 		screen.Clear()
 
-    cursor_row, cursor_col := -1, -1
+		cursor_row, cursor_col := -1, -1
 
 		row, col := 0, 0
-		for i, r := range content.calculate_content() {
-			if i == cursor.index {
-        cursor_row, cursor_col = row, col
+		for i, r := range editor.get_content() {
+			if i == editor.get_cursor_index() {
+				cursor_row, cursor_col = row, col
 			}
 
 			if r == '\n' {
@@ -61,6 +58,7 @@ func main() {
 		}
 
 		screen.ShowCursor(cursor_col, cursor_row)
+
 		// show new buffer
 		screen.Show()
 
@@ -68,7 +66,6 @@ func main() {
 		event := screen.PollEvent()
 
 		// update state based on new event
-
 		switch event := event.(type) {
 		case *tcell.EventKey:
 
@@ -77,17 +74,15 @@ func main() {
 			if key == tcell.KeyEscape {
 				return
 			} else if key == tcell.KeyEnter {
-				content.replace([]rune{'\n'},
-					cursor.index,
-					cursor.index,
-				)
-				cursor.index += 1
+        editor.insert_rune('\n')
+			} else if key == tcell.KeyRight {
+        editor.shift_cursor(1)
+			} else if key == tcell.KeyLeft {
+        editor.shift_cursor(-1)
 			} else if key == tcell.KeyRune {
-				content.replace([]rune{event.Rune()},
-					cursor.index,
-					cursor.index,
-				)
-				cursor.index += 1
+        editor.insert_rune(event.Rune())
+			} else if key == tcell.KeyBackspace2 {
+        editor.backspace()
 			}
 		}
 	}

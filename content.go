@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -42,18 +43,19 @@ func (content *Content) load_from_file(path string) {
 
 	original_piece := Piece{
 		start:  0,
-		length: len(file_content),
+		length: len(file_content) - 1,
 		kind:   original,
 		next:   nil,
 	}
 
-  content.length = original_piece.length
+	content.length = original_piece.length
 
 	content.root = &original_piece
 }
 
 // TODO add a bunch of error cases, should return error
 func (content *Content) replace(r []rune, start int, end int) {
+	// fmt.Printf("%s %d %d\n", string(r), start, end)
 	/*
 	   start, end inclusive
 
@@ -76,7 +78,9 @@ func (content *Content) replace(r []rune, start int, end int) {
 		next:   nil,
 	}
 
-	content.add = append(content.add, r...)
+	if len(r) > 0 {
+		content.add = append(content.add, r...)
+	}
 
 	// CASE 1: no content
 	if content.root == nil {
@@ -113,55 +117,125 @@ func (content *Content) replace(r []rune, start int, end int) {
 		piece_start := 0
 		for piece := content.root; piece != nil; piece = piece.next {
 			piece_end := piece_start + piece.length
-			
-      if piece_end == start {
-        temp := piece.next
-        piece.next = &new_piece
-        new_piece.next = temp
-        content.length = content.length + new_piece.length
-        return
-      } else if piece_start < start && start < piece_end {
-        pl := Piece{
-          start: piece.start,
-          length: start - piece_start,
-          kind: piece.kind,
-          next: nil,
-        }
-        pr := Piece{
-          start: pl.start + pl.length,
-          length: piece.length - pl.length,
-          kind: piece.kind,
-          next: nil,
-        }
 
-        temp := piece.next
-        piece.start = pl.start
-        piece.length = pl.length
-        piece.next = &new_piece
-        new_piece.next = &pr
-        pr.next=temp
+			if piece_end == start {
+				temp := piece.next
+				piece.next = &new_piece
+				new_piece.next = temp
+				content.length = content.length + new_piece.length
+				return
+			} else if piece_start < start && start < piece_end {
+				pl := Piece{
+					start:  piece.start,
+					length: start - piece_start,
+					kind:   piece.kind,
+					next:   nil,
+				}
+				pr := Piece{
+					start:  pl.start + pl.length,
+					length: piece.length - pl.length,
+					kind:   piece.kind,
+					next:   nil,
+				}
 
-        content.length = content.length + new_piece.length
-        return
-      }
+				temp := piece.next
+				piece.start = pl.start
+				piece.length = pl.length
+				piece.next = &new_piece
+				new_piece.next = &pr
+				pr.next = temp
+
+				content.length = content.length + new_piece.length
+				return
+			}
 
 			piece_start = piece_end
 		}
 	}
 
 	// Case 5: replacing
-	// delete stuff first
+	// delete stuff first, recursion to insert
 	piece_start := 0
+	var prev *Piece = nil
 	for piece := content.root; piece != nil; piece = piece.next {
+
 		piece_end := piece_start + piece.length
-		if piece_start <= start && start < piece_end {
+
+		if piece_start < start && end < piece_end {
+			// fmt.Println("going 1")
+			content.length -= piece.length
+
+			// set up right piece
+			pr := &Piece{
+				start:  piece.start + end - piece_start,
+				length: piece_end - end,
+				kind:   piece.kind,
+				next:   piece.next,
+			}
+
+			// set up left piece
+			piece.length = start - piece_start
+			piece.next = pr
+
+			content.length += piece.length + pr.length
+			break
 		}
-		if start < piece_start && end >= piece_end {
-		}
-		if piece_start <= end && piece_end > end {
+
+		if piece_start >= start && end >= piece_end {
+			// fmt.Println("going 2")
+			// fmt.Printf("%d %d %d %d\n", start, end, piece_start, piece_end)
+			content.length -= piece.length
+			if prev == nil {
+				content.root = content.root.next
+			} else {
+				prev.next = piece.next
+			}
+			piece = content.root
+			prev = nil
+
+			if piece_end == end {
+				break
+			}
+
+			continue
+
+		} else if piece_start >= start && end > piece_start && end < piece_end {
+			// fmt.Println("going 3")
+			content.length -= piece.length
+			piece.start = piece.start + end - start
+			piece.length = piece_end - end
+
+			content.length += piece.length
+			if piece_start == start {
+				break
+			}
+
+			piece_end = piece_start + piece.length
+		} else if end >= piece_end && start > piece_start && start < piece_end {
+			// fmt.Println("going 4")
+			content.length -= piece.length
+			piece.length = start - piece_start
+
+			content.length += piece.length
+			if piece_end == end {
+				break
+			}
+
+			piece_end = piece_start + piece.length
 		}
 
 		piece_start = piece_end
+		prev = piece
+	}
+
+	if len(r) > 0 {
+		content.replace(r, start, start)
+	}
+}
+
+func (content *Content) print_pieces() {
+	for piece := content.root; piece != nil; piece = piece.next {
+		fmt.Println(piece)
 	}
 }
 
