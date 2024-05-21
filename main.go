@@ -40,14 +40,8 @@ func main() {
 		// edit content based on new state
 		screen.Clear()
 
-		cursor_row, cursor_col := -1, -1
-
 		row, col := 0, 0
-		for i, r := range editor.get_content() {
-			if i == editor.get_cursor_index() {
-				cursor_row, cursor_col = row, col
-			}
-
+		for _, r := range editor.content.calculate_content() {
 			if r == '\n' {
 				row = row + 1
 				col = 0
@@ -57,7 +51,7 @@ func main() {
 			}
 		}
 
-		screen.ShowCursor(cursor_col, cursor_row)
+		screen.ShowCursor(editor.cursor.col, editor.cursor.row)
 
 		// show new buffer
 		screen.Show()
@@ -74,15 +68,19 @@ func main() {
 			if key == tcell.KeyEscape {
 				return
 			} else if key == tcell.KeyEnter {
-        editor.insert_rune('\n')
+				editor.insert_rune('\n')
 			} else if key == tcell.KeyRight {
-        editor.shift_cursor(1)
+				editor.shift_cursor(0, 1, false, false)
 			} else if key == tcell.KeyLeft {
-        editor.shift_cursor(-1)
+				editor.shift_cursor(0, -1, false, false)
+			} else if key == tcell.KeyUp {
+				editor.shift_cursor(-1, 0, false, false)
+			} else if key == tcell.KeyDown {
+				editor.shift_cursor(1, 0, false, false)
 			} else if key == tcell.KeyRune {
-        editor.insert_rune(event.Rune())
+				editor.insert_rune(event.Rune())
 			} else if key == tcell.KeyBackspace2 {
-        editor.backspace()
+				editor.backspace()
 			}
 		}
 	}
