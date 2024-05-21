@@ -259,22 +259,18 @@ func TestReplaceRepeatDelete(t *testing.T) {
 }
 
 func TestReplaceAddDelete(t *testing.T) {
-  fmt.Println("MAIN TEST")
+	fmt.Println("MAIN TEST")
 	content := &Content{
-		original: []rune("here"),
+		original: []rune("he\nre"),
 		add:      []rune{},
-		root:     &Piece{0, 4, original, nil},
-		length:   4,
+		root:     &Piece{0, 5, original, nil},
+		length:   5,
 	}
 
 	content.print_pieces()
-  fmt.Println(content.calculate_content())
-  fmt.Println()
-	content.replace([]rune{}, 2, 3)
+	fmt.Println(content.calculate_content())
+	fmt.Println()
+	content.replace([]rune{'a'}, 4, 4)
 	content.print_pieces()
-  fmt.Println(content.calculate_content())
-  fmt.Println()
-	content.replace([]rune{}, 1, 2)
-	content.print_pieces()
-  fmt.Println(content.calculate_content())
+	fmt.Println(content.calculate_content())
 }

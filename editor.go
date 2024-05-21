@@ -1,17 +1,35 @@
 package main
 
+import (
+	"path/filepath"
+)
+
 type Editor struct {
 	content *Content
 	cursor  *Cursor
+
+	screen_height int
+	screen_width  int
+
+	// should these be rune lists?
+	file_path string
+	file_name string
 }
 
 func initialize_editor(path string) Editor {
-	cursor := Cursor{index: 0, row: 0, col: 0}
-	content := Content{}
+	file_name := filepath.Base(path)
 
+	cursor := Cursor{index: 0, row: 0, col: 0}
+
+	content := Content{}
 	content.load_from_file(path)
 
-	editor := Editor{content: &content, cursor: &cursor}
+	editor := Editor{
+		content:   &content,
+		cursor:    &cursor,
+		file_path: path,
+		file_name: file_name,
+	}
 
 	return editor
 }
@@ -34,7 +52,7 @@ func (editor *Editor) shift_cursor(
 		new_col = 0
 	}
 
-	if new_row <= 0 && new_col <= 0 && !last_col{
+	if new_row <= 0 && new_col <= 0 && !last_col {
 		new_index = 0
 
 		editor.cursor.row = new_row
@@ -67,9 +85,9 @@ func (editor *Editor) shift_cursor(
 	}
 
 	if new_index == -1 {
-		col = max(col-1, 0)
 		new_row = row
 		new_col = col
+        new_index = editor.content.length
 	}
 
 	editor.cursor.row = new_row
@@ -108,7 +126,16 @@ func (editor *Editor) backspace() {
 		editor.shift_cursor(0, -1, false, false)
 	}
 
-	if editor.get_cursor_index() > 0 {
+	if editor.get_cursor_index() >= 0 {
 		editor.content.replace([]rune{}, del_idx, del_idx+1)
 	}
+}
+
+// maybe consume as list of lines for rendering since all in memory in anyways?
+func (editor *Editor) get_content() []rune {
+    return editor.content.calculate_content()
+}
+
+func (editor *Editor) get_status_bar() []rune {
+    return []rune{}   
 }
