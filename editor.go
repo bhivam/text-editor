@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strconv"
 )
 
 type Editor struct {
@@ -87,7 +88,7 @@ func (editor *Editor) shift_cursor(
 	if new_index == -1 {
 		new_row = row
 		new_col = col
-        new_index = editor.content.length
+		new_index = editor.content.length
 	}
 
 	editor.cursor.row = new_row
@@ -133,9 +134,31 @@ func (editor *Editor) backspace() {
 
 // maybe consume as list of lines for rendering since all in memory in anyways?
 func (editor *Editor) get_content() []rune {
-    return editor.content.calculate_content()
+	return editor.content.calculate_content()
 }
 
 func (editor *Editor) get_status_bar() []rune {
-    return []rune{}   
+	row, col := editor.cursor.row, editor.cursor.col
+
+	left_content := []rune(" ")
+	left_content = append(left_content, []rune(editor.file_name)...)
+
+	right_content := []rune(strconv.FormatInt(int64(row), 10))
+	right_content = append(right_content, rune(':'))
+	right_content = append(right_content, []rune(strconv.FormatInt(int64(col), 10))...)
+	right_content = append(right_content, rune(' '))
+
+	space_between := editor.screen_width - len(left_content) - len(right_content)
+
+	if space_between < 1 {
+		return []rune{}
+	}
+
+	status_line := left_content
+	for range space_between {
+		status_line = append(status_line, rune(' '))
+	}
+	status_line = append(status_line, right_content...)
+
+	return status_line
 }

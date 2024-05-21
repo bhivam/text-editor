@@ -34,12 +34,17 @@ func main() {
 	editor := initialize_editor("test.txt")
 
 	def_style := tcell.StyleDefault.
-		Foreground(tcell.ColorReset).
-		Background(tcell.ColorReset)
+		Foreground(tcell.ColorReset.TrueColor()).
+		Background(tcell.ColorReset.TrueColor())
 
 	line_num_style := tcell.StyleDefault.
 		Foreground(tcell.ColorDimGray.TrueColor()).
-		Background(tcell.ColorReset)
+		Background(tcell.ColorReset.TrueColor())
+
+	status_bar_style := tcell.StyleDefault.
+		Foreground(tcell.ColorBlack.TrueColor()).
+		Background(tcell.ColorFloralWhite).
+        Bold(true)
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
@@ -70,13 +75,12 @@ func main() {
 		// edit content based on new state
 		screen.Clear()
 
+		// render content
 		max_row_digits := 2
-
 		i, row, col := 0, 0, 0
 		editor_content := editor.get_content()
 		print_line_num(screen, &row, &col, 2, line_num_style)
-
-		for i < editor.content.length {
+		for i < editor.content.length && row < editor.screen_height-1 {
 			r := editor_content[i]
 			if r == '\n' {
 				row = row + 1
@@ -88,6 +92,12 @@ func main() {
 				col += 1
 			}
 			i += 1
+		}
+
+		status_bar := editor.get_status_bar()
+		row = editor.screen_height - 1
+		for col, r := range status_bar {
+			screen.SetContent(col, row, r, nil, status_bar_style)
 		}
 
 		screen.ShowCursor(max_row_digits+2+editor.cursor.col, editor.cursor.row)
