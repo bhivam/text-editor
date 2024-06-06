@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 type PieceType int
@@ -20,13 +21,17 @@ type Piece struct {
 }
 
 type Content struct {
-	original []rune
-	add      []rune
-	root     *Piece
-	length   int
+	original   []rune
+	add        []rune
+	root       *Piece
+	length     int
+	last_edit  int64
+	num_pieces int
 }
 
 func (content *Content) load_from_file(path string) {
+	content.last_edit = -1
+
 	raw_file_content, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
@@ -49,13 +54,12 @@ func (content *Content) load_from_file(path string) {
 	}
 
 	content.length = original_piece.length
-
 	content.root = &original_piece
+	content.num_pieces = 1
 }
 
 // TODO add a bunch of error cases, should return error
 func (content *Content) replace(r []rune, start int, end int) {
-	// fmt.Printf("%s %d %d\n", string(r), start, end)
 	/*
 	   start, end inclusive
 
@@ -70,6 +74,9 @@ func (content *Content) replace(r []rune, start int, end int) {
 
 	   insert and delete instead of direct use of replace
 	*/
+	current_time := time.Now().UnixMilli()
+	coalesce := current_time-content.last_edit < 1000
+	content.last_edit = current_time
 
 	new_piece := Piece{
 		start:  len(content.add),
@@ -117,6 +124,15 @@ func (content *Content) replace(r []rune, start int, end int) {
 		piece_start := 0
 		for piece := content.root; piece != nil; piece = piece.next {
 			piece_end := piece_start + piece.length
+
+			if coalesce && piece.kind == add &&
+				piece.start+piece.length == new_piece.start &&
+				piece_end == start {
+
+				piece.length += new_piece.length
+				content.length += new_piece.length
+				return
+			}
 
 			if piece_end == start {
 				temp := piece.next
@@ -241,6 +257,7 @@ func (content *Content) print_pieces() {
 
 func (content *Content) calculate_content() []rune {
 	final_string := []rune{}
+	num_pieces := 0
 
 	for piece := content.root; piece != nil; piece = piece.next {
 		var piece_string []rune = []rune{}
@@ -255,7 +272,9 @@ func (content *Content) calculate_content() []rune {
 		}
 
 		final_string = append(final_string, piece_string...)
+		num_pieces += 1
 	}
+	content.num_pieces = num_pieces
 
 	return final_string
 }

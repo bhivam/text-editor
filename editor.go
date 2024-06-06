@@ -64,6 +64,7 @@ func (editor *Editor) shift_cursor(
 	}
 
 	index, row, col := 0, 0, 0
+
 	for _, r := range editor.content.calculate_content() {
 
 		if new_row == row && r == '\n' && (new_col > col || last_col) {
@@ -142,6 +143,11 @@ func (editor *Editor) get_status_bar() []rune {
 
 	left_content := []rune(" ")
 	left_content = append(left_content, []rune(editor.file_name)...)
+	left_content = append(left_content, rune(' '))
+	left_content = append(
+		left_content,
+		[]rune(strconv.FormatInt(int64(editor.content.num_pieces), 10))...,
+	)
 
 	right_content := []rune(strconv.FormatInt(int64(row), 10))
 	right_content = append(right_content, rune(':'))
