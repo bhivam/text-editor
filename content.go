@@ -21,12 +21,12 @@ type Piece struct {
 }
 
 type Content struct {
-	original   []rune
-	add        []rune
-	root       *Piece
-	length     int
-	last_edit  int64
-	num_pieces int
+	original     []rune
+	add          []rune
+	content_root *Piece
+	length       int
+	last_edit    int64
+	num_pieces   int
 }
 
 func (content *Content) load_from_file(path string) {
@@ -54,8 +54,11 @@ func (content *Content) load_from_file(path string) {
 	}
 
 	content.length = original_piece.length
-	content.root = &original_piece
+	content.content_root = &original_piece
 	content.num_pieces = 1
+}
+
+func (content *Content) undo() {
 }
 
 // TODO add a bunch of error cases, should return error
@@ -90,23 +93,24 @@ func (content *Content) replace(r []rune, start int, end int) {
 	}
 
 	// CASE 1: no content
-	if content.root == nil {
+	if content.content_root == nil {
 		// assert start == 0 and end == 0
-		content.root = &new_piece
+		content.content_root = &new_piece
 		content.length = new_piece.length
 		return
 	}
 
 	// CASE 2: prepend
 	if start == 0 && end == 0 {
-		new_piece.next = content.root
-		content.root = &new_piece
+		new_piece.next = content.content_root
+		content.content_root = &new_piece
 		content.length = content.length + new_piece.length
 		return
 	}
-
+    
+    // CASE 3: prepend
 	if start == content.length && end == content.length {
-		piece := content.root
+		piece := content.content_root
 		for {
 			if piece.next == nil {
 				break
@@ -122,7 +126,7 @@ func (content *Content) replace(r []rune, start int, end int) {
 	// CASE 4: inserting
 	if start == end {
 		piece_start := 0
-		for piece := content.root; piece != nil; piece = piece.next {
+		for piece := content.content_root; piece != nil; piece = piece.next {
 			piece_end := piece_start + piece.length
 
 			if coalesce && piece.kind == add &&
@@ -173,7 +177,7 @@ func (content *Content) replace(r []rune, start int, end int) {
 	// delete stuff first, recursion to insert
 	piece_start := 0
 	var prev *Piece = nil
-	for piece := content.root; piece != nil; piece = piece.next {
+	for piece := content.content_root; piece != nil; piece = piece.next {
 
 		piece_end := piece_start + piece.length
 
@@ -202,11 +206,11 @@ func (content *Content) replace(r []rune, start int, end int) {
 			// fmt.Printf("%d %d %d %d\n", start, end, piece_start, piece_end)
 			content.length -= piece.length
 			if prev == nil {
-				content.root = content.root.next
+				content.content_root = content.content_root.next
 			} else {
 				prev.next = piece.next
 			}
-			piece = content.root
+			piece = content.content_root
 			prev = nil
 
 			if piece_end == end {
@@ -250,7 +254,7 @@ func (content *Content) replace(r []rune, start int, end int) {
 }
 
 func (content *Content) print_pieces() {
-	for piece := content.root; piece != nil; piece = piece.next {
+	for piece := content.content_root; piece != nil; piece = piece.next {
 		fmt.Println(piece)
 	}
 }
@@ -259,7 +263,7 @@ func (content *Content) calculate_content() []rune {
 	final_string := []rune{}
 	num_pieces := 0
 
-	for piece := content.root; piece != nil; piece = piece.next {
+	for piece := content.content_root; piece != nil; piece = piece.next {
 		var piece_string []rune = []rune{}
 
 		// TODO Put this as a function of piece

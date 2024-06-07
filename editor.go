@@ -5,6 +5,13 @@ import (
 	"strconv"
 )
 
+type EditorMode int
+
+const (
+	normal EditorMode = iota
+	insert            = iota
+)
+
 type Editor struct {
 	content *Content
 	cursor  *Cursor
@@ -12,12 +19,13 @@ type Editor struct {
 	screen_height int
 	screen_width  int
 
-	// should these be rune lists?
 	file_path string
 	file_name string
+
+	mode EditorMode
 }
 
-func initialize_editor(path string) Editor {
+func initialize_editor(path string, screen_height int, screen_width int) Editor {
 	file_name := filepath.Base(path)
 
 	cursor := Cursor{index: 0, row: 0, col: 0}
@@ -26,10 +34,13 @@ func initialize_editor(path string) Editor {
 	content.load_from_file(path)
 
 	editor := Editor{
-		content:   &content,
-		cursor:    &cursor,
-		file_path: path,
-		file_name: file_name,
+		content:       &content,
+		cursor:        &cursor,
+		file_path:     path,
+		file_name:     file_name,
+		mode:          normal,
+		screen_height: screen_height,
+		screen_width:  screen_width,
 	}
 
 	return editor
@@ -41,6 +52,8 @@ func (editor *Editor) shift_cursor(
 	first_col bool,
 	last_col bool,
 ) {
+	// TODO cursor should not be able to go to last index for normal mode
+
 	new_row := editor.cursor.row + row_offset
 	new_col := editor.cursor.col + col_offset
 	new_index := -1
@@ -142,12 +155,13 @@ func (editor *Editor) get_status_bar() []rune {
 	row, col := editor.cursor.row, editor.cursor.col
 
 	left_content := []rune(" ")
+	if editor.mode == normal {
+		left_content = append(left_content, []rune("NORMAL")...)
+	} else if editor.mode == insert {
+		left_content = append(left_content, []rune("INSERT")...)
+	}
+	left_content = append(left_content, rune(' '), rune('|'), rune(' '))
 	left_content = append(left_content, []rune(editor.file_name)...)
-	left_content = append(left_content, rune(' '))
-	left_content = append(
-		left_content,
-		[]rune(strconv.FormatInt(int64(editor.content.num_pieces), 10))...,
-	)
 
 	right_content := []rune(strconv.FormatInt(int64(row), 10))
 	right_content = append(right_content, rune(':'))
@@ -167,4 +181,16 @@ func (editor *Editor) get_status_bar() []rune {
 	status_line = append(status_line, right_content...)
 
 	return status_line
+}
+
+func (editor *Editor) to_normal() {
+	editor.shift_cursor(0, -1, false, false)
+	editor.mode = normal
+}
+
+func (editor *Editor) to_insert(after bool) {
+	if after {
+		editor.shift_cursor(0, 1, false, false)
+	}
+	editor.mode = insert
 }

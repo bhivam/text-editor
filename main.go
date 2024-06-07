@@ -31,8 +31,6 @@ func print_line_num(
 }
 
 func main() {
-	editor := initialize_editor("test.txt")
-
 	def_style := tcell.StyleDefault.
 		Foreground(tcell.ColorReset.TrueColor()).
 		Background(tcell.ColorReset.TrueColor())
@@ -44,7 +42,7 @@ func main() {
 	status_bar_style := tcell.StyleDefault.
 		Foreground(tcell.ColorBlack.TrueColor()).
 		Background(tcell.ColorFloralWhite).
-        Bold(true)
+		Bold(true)
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
@@ -68,8 +66,8 @@ func main() {
 	}
 
 	defer quit()
-
-	editor.screen_width, editor.screen_height = screen.Size()
+	init_screen_height, init_screen_width := screen.Size()
+	editor := initialize_editor("test.txt", init_screen_height, init_screen_width)
 
 	for {
 		// edit content based on new state
@@ -114,22 +112,56 @@ func main() {
 
 			key := event.Key()
 
-			if key == tcell.KeyEscape {
-				return
-			} else if key == tcell.KeyEnter {
-				editor.insert_rune('\n')
-			} else if key == tcell.KeyRight {
-				editor.shift_cursor(0, 1, false, false)
-			} else if key == tcell.KeyLeft {
-				editor.shift_cursor(0, -1, false, false)
-			} else if key == tcell.KeyUp {
-				editor.shift_cursor(-1, 0, false, false)
-			} else if key == tcell.KeyDown {
-				editor.shift_cursor(1, 0, false, false)
-			} else if key == tcell.KeyRune {
-				editor.insert_rune(event.Rune())
-			} else if key == tcell.KeyBackspace2 {
-				editor.backspace()
+			if editor.mode == insert {
+				if key == tcell.KeyEscape {
+					editor.to_normal()
+				} else if key == tcell.KeyEnter {
+					editor.insert_rune('\n')
+				} else if key == tcell.KeyRight {
+					editor.shift_cursor(0, 1, false, false)
+				} else if key == tcell.KeyLeft {
+					editor.shift_cursor(0, -1, false, false)
+				} else if key == tcell.KeyUp {
+					editor.shift_cursor(-1, 0, false, false)
+				} else if key == tcell.KeyDown {
+					editor.shift_cursor(1, 0, false, false)
+				} else if key == tcell.KeyRune {
+					editor.insert_rune(event.Rune())
+				} else if key == tcell.KeyBackspace2 {
+					editor.backspace()
+				}
+			} else if editor.mode == normal {
+				if key == tcell.KeyRune {
+					key_val := event.Rune()
+					switch key_val {
+					case rune('q'):
+						return
+
+                    // switch mode 
+					case rune('a'):
+						editor.to_insert(true)
+					case rune('i'):
+						editor.to_insert(false)
+
+                    // basic movement keys
+					case rune('j'):
+						editor.shift_cursor(1, 0, false, false)
+					case rune('k'):
+						editor.shift_cursor(-1, 0, false, false)
+					case rune('h'):
+						editor.shift_cursor(0, -1, false, false)
+					case rune('l'):
+						editor.shift_cursor(0, 1, false, false)
+					}
+				} else if key == tcell.KeyRight {
+					editor.shift_cursor(0, 1, false, false)
+				} else if key == tcell.KeyLeft {
+					editor.shift_cursor(0, -1, false, false)
+				} else if key == tcell.KeyUp {
+					editor.shift_cursor(-1, 0, false, false)
+				} else if key == tcell.KeyDown {
+					editor.shift_cursor(1, 0, false, false)
+				}
 			}
 
 		case *tcell.EventResize:
