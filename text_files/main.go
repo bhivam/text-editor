@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/gdamore/tcell/v2"
@@ -31,6 +32,14 @@ func print_line_num(
 }
 
 func main() {
+	args := os.Args
+
+	if len(args) != 2 {
+		log.Fatalf("Usage: %s <filename>", args[0])
+	}
+
+	filename := args[1]
+
 	def_style := tcell.StyleDefault.
 		Foreground(tcell.ColorReset.TrueColor()).
 		Background(tcell.ColorReset.TrueColor())
@@ -67,7 +76,7 @@ func main() {
 
 	defer quit()
 	init_screen_height, init_screen_width := screen.Size()
-	editor := initialize_editor("test.txt", init_screen_height, init_screen_width)
+	editor := initialize_editor(filename, init_screen_height, init_screen_width)
 
 	for {
 		// edit content based on new state
@@ -137,13 +146,13 @@ func main() {
 					case rune('q'):
 						return
 
-                    // switch mode 
+						// switch mode
 					case rune('a'):
 						editor.to_insert(true)
 					case rune('i'):
 						editor.to_insert(false)
 
-                    // basic movement keys
+						// basic movement keys
 					case rune('j'):
 						editor.shift_cursor(1, 0, false, false)
 					case rune('k'):
