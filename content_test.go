@@ -21,10 +21,10 @@ func rune_cmp(a []rune, b []rune) bool {
 
 func TestReplace(t *testing.T) {
 	content := &Content{
-		original: []rune{},
-		add:      []rune{},
-		root:     nil,
-		length:   0,
+		original:     []rune{},
+		add:          []rune{},
+		content_root: nil,
+		length:       0,
 	}
 
 	add_string := []rune("Hello world!")
@@ -127,10 +127,10 @@ func TestReplace(t *testing.T) {
 
 func TestReplaceRealistic(t *testing.T) {
 	content := &Content{
-		original: []rune("hey"),
-		add:      []rune{},
-		root:     &Piece{0, 3, original, nil},
-		length:   3,
+		original:     []rune("hey"),
+		add:          []rune{},
+		content_root: &Piece{0, 3, original, nil},
+		length:       3,
 	}
 
 	to_add := []rune{'h'}
@@ -171,10 +171,10 @@ func TestReplaceRealistic(t *testing.T) {
 
 func TestReplaceDelete(t *testing.T) {
 	content := &Content{
-		original: []rune("hey"),
-		add:      []rune{},
-		root:     &Piece{0, 3, original, nil},
-		length:   3,
+		original:     []rune("hey"),
+		add:          []rune{},
+		content_root: &Piece{0, 3, original, nil},
+		length:       3,
 	}
 
 	content.replace([]rune{}, 0, 1)
@@ -196,10 +196,10 @@ func TestReplaceDelete(t *testing.T) {
 	}
 
 	content = &Content{
-		original: []rune("hey"),
-		add:      []rune{},
-		root:     &Piece{0, 3, original, nil},
-		length:   3,
+		original:     []rune("hey"),
+		add:          []rune{},
+		content_root: &Piece{0, 3, original, nil},
+		length:       3,
 	}
 
 	content.replace([]rune{}, 1, 2)
@@ -221,10 +221,10 @@ func TestReplaceDelete(t *testing.T) {
 	}
 
 	content = &Content{
-		original: []rune("hey"),
-		add:      []rune{},
-		root:     &Piece{0, 3, original, nil},
-		length:   3,
+		original:     []rune("hey"),
+		add:          []rune{},
+		content_root: &Piece{0, 3, original, nil},
+		length:       3,
 	}
 
 	content.replace([]rune{}, 2, 3)
@@ -248,10 +248,10 @@ func TestReplaceDelete(t *testing.T) {
 
 func TestReplaceRepeatDelete(t *testing.T) {
 	content := &Content{
-		original: []rune("Hello, world!"),
-		add:      []rune{},
-		root:     &Piece{0, 13, original, nil},
-		length:   13,
+		original:     []rune("Hello, world!"),
+		add:          []rune{},
+		content_root: &Piece{0, 13, original, nil},
+		length:       13,
 	}
 	content.replace([]rune{}, 0, 1)
 	content.replace([]rune{}, 0, 1)
@@ -261,10 +261,10 @@ func TestReplaceRepeatDelete(t *testing.T) {
 func TestReplaceAddDelete(t *testing.T) {
 	fmt.Println("MAIN TEST")
 	content := &Content{
-		original: []rune("he\nre"),
-		add:      []rune{},
-		root:     &Piece{0, 5, original, nil},
-		length:   5,
+		original:     []rune("he\nre"),
+		add:          []rune{},
+		content_root: &Piece{0, 5, original, nil},
+		length:       5,
 	}
 
 	content.print_pieces()
