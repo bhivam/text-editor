@@ -1,7 +1,10 @@
 package main
 
 import (
+	"flag"
+	"io"
 	"log"
+	"net"
 	"os"
 	"strconv"
 
@@ -33,15 +36,44 @@ func printLineNum(
 	*col += 1
 }
 
-func main() {
-	args := os.Args
-
-	if len(args) != 2 {
-		log.Fatalf("Usage: %s <filename>", args[0])
+func tcpFileEdit(remoteHost string) {
+	conn, err := net.Dial("tcp", remoteHost)
+	if err != nil {
+		log.Fatalf("Error connecting to remote host: %v", err)
 	}
 
-	filename := args[1]
+	/*
+			  1. Send file name to server
+			  2. Get serialized content from serve
+		    3. Render content
+	*/
 
+	// send file name to server
+	_, err = conn.Write([]byte("../text_files/test.txt|"))
+	_, err = conn.Write([]byte(strconv.Itoa(500)))
+	_, err = conn.Write([]byte("|"))
+	_, err = conn.Write([]byte(strconv.Itoa(500)))
+	_, err = conn.Write([]byte(";"))
+
+	if err != nil {
+		log.Fatalf("Error sending file name to server: %v", err)
+	}
+
+	// get serialized content from server
+
+	// receive, deserialize, render, send-key loop
+
+	defer conn.Close()
+	for {
+		_, err := io.Copy(conn, conn)
+		if err != nil {
+			log.Printf("Error reading from connection: %v", err)
+			return
+		}
+	}
+}
+
+func localFileEdit(fileName string) {
 	defStyle := tcell.StyleDefault.
 		Foreground(tcell.ColorReset.TrueColor()).
 		Background(tcell.ColorReset.TrueColor())
@@ -69,7 +101,7 @@ func main() {
 	screen.Clear()
 
 	initScreenHeight, initScreenWidth := screen.Size()
-	editor := backend.InitializeEditor(filename, initScreenHeight, initScreenWidth)
+	editor := backend.InitializeEditor(fileName, initScreenHeight, initScreenWidth)
 
 	quit := func() {
 		maybePanic := recover()
@@ -94,7 +126,7 @@ func main() {
 		i, row, col := 0, 0, 0
 		editorContent := editor.GetContent()
 		printLineNum(screen, &row, &col, 2, lineNumStyle)
-		for i < editor.Length() && row < editor.ScreenHeight()-1 {
+		for i < editor.Length() && row < editor.ScreenHeight-1 {
 			r := editorContent[i]
 			if r == '\n' {
 				row = row + 1
@@ -109,12 +141,12 @@ func main() {
 		}
 
 		statusBar := editor.GetStatusBar()
-		row = editor.ScreenHeight() - 1
+		row = editor.ScreenHeight - 1
 		for col, r := range statusBar {
 			screen.SetContent(col, row, r, nil, statusBarStyle)
 		}
 
-		screen.ShowCursor(maxRowDigits+2+editor.CursorCol(), editor.CursorRow())
+		screen.ShowCursor(maxRowDigits+2+editor.Cursor.Col, editor.Cursor.Row)
 
 		// show new buffer
 		screen.Show()
@@ -128,7 +160,7 @@ func main() {
 
 			key := event.Key()
 
-			if editor.Mode() == backend.Insert {
+			if editor.Mode == backend.Insert {
 				if key == tcell.KeyEscape {
 					editor.ToNormal()
 				} else if key == tcell.KeyEnter {
@@ -146,7 +178,7 @@ func main() {
 				} else if key == tcell.KeyBackspace2 {
 					editor.Backspace()
 				}
-			} else if editor.Mode() == backend.Normal {
+			} else if editor.Mode == backend.Normal {
 				if key == tcell.KeyRune {
 					keyVal := event.Rune()
 					switch keyVal {
@@ -181,9 +213,36 @@ func main() {
 			}
 
 		case *tcell.EventResize:
-			w, h := event.Size()
-			editor.SetScreenWidth(w)
-			editor.SetScreenHeight(h)
+			editor.ScreenWidth, editor.ScreenHeight = event.Size()
 		}
+	}
+}
+
+func main() {
+	var fileName string
+
+	isRemote := flag.Bool("R", false, "Specify remote host and port")
+
+	flag.Parse()
+
+	if *isRemote {
+		if len(flag.Args()) < 2 {
+			log.Fatal("Please specify a remote host and port after -R, followed by a file name")
+			os.Exit(1)
+		}
+		remoteHost := flag.Arg(0) // remote host and port
+		fileName = flag.Arg(1)    // file name
+
+		tcpFileEdit(remoteHost)
+		os.Exit(0)
+	} else {
+		if len(flag.Args()) < 1 {
+			log.Fatal("Please specify a file name")
+			os.Exit(1)
+		}
+		fileName = flag.Arg(0)
+
+		localFileEdit(fileName)
+		os.Exit(0)
 	}
 }
