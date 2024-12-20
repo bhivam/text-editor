@@ -1,8 +1,8 @@
 package backend
 
 type Cursor struct {
-	index     int
-	row       int
-	col       int
-	atNewLine bool
+	Index     int  `json:"index"`
+	Row       int  `json:"row"`
+	Col       int  `json:"col"`
+	AtNewLine bool `json:"atNewLine"`
 }
