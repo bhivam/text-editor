@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -12,6 +12,20 @@ import (
 
 	"github.com/bhivam/text-editor/backend"
 )
+
+type InitArgs struct {
+	ScreenHeight int
+	ScreenWidth  int
+	FileName     string
+}
+
+type EditorEvent struct {
+	IsKey  bool
+	Key    tcell.Key
+	Rune   rune
+	Width  int
+	Height int
+}
 
 func printLineNum(
 	screen tcell.Screen,
@@ -36,39 +50,141 @@ func printLineNum(
 	*col += 1
 }
 
-func tcpFileEdit(remoteHost string) {
+func tcpFileEdit(remoteHost string, fileName string) {
 	conn, err := net.Dial("tcp", remoteHost)
 	if err != nil {
-		log.Fatalf("Error connecting to remote host: %v", err)
+		return
 	}
-
-	/*
-			  1. Send file name to server
-			  2. Get serialized content from serve
-		    3. Render content
-	*/
-
-	// send file name to server
-	_, err = conn.Write([]byte("../text_files/test.txt|"))
-	_, err = conn.Write([]byte(strconv.Itoa(500)))
-	_, err = conn.Write([]byte("|"))
-	_, err = conn.Write([]byte(strconv.Itoa(500)))
-	_, err = conn.Write([]byte(";"))
-
-	if err != nil {
-		log.Fatalf("Error sending file name to server: %v", err)
-	}
-
-	// get serialized content from server
-
-	// receive, deserialize, render, send-key loop
-
 	defer conn.Close()
+
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	initScreenWidth, initScreenHeight := screen.Size()
+
+	initArgs := InitArgs{
+		FileName:     fileName,
+		ScreenWidth:  initScreenWidth,
+		ScreenHeight: initScreenHeight,
+	}
+
+	enc := json.NewEncoder(conn)
+	dec := json.NewDecoder(conn)
+
+	err = enc.Encode(initArgs)
+	if err != nil {
+		return
+	}
+
+	defStyle := tcell.StyleDefault.
+		Foreground(tcell.ColorReset.TrueColor()).
+		Background(tcell.ColorReset.TrueColor())
+
+	lineNumStyle := tcell.StyleDefault.
+		Foreground(tcell.ColorDimGray.TrueColor()).
+		Background(tcell.ColorReset.TrueColor())
+
+	statusBarStyle := tcell.StyleDefault.
+		Foreground(tcell.ColorBlack.TrueColor()).
+		Background(tcell.ColorFloralWhite).
+		Bold(true)
+
+	if err := screen.Init(); err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	screen.SetStyle(defStyle)
+	screen.EnableMouse()
+	screen.EnablePaste()
+	screen.Clear()
+
+	editor := backend.Editor{}
+
 	for {
-		_, err := io.Copy(conn, conn)
+		dec.Decode(&editor)
+		renderEditor(screen, editor, defStyle, lineNumStyle, statusBarStyle)
+
+		event := screen.PollEvent()
+
+		editorEvent := EditorEvent{}
+		switch event := event.(type) {
+		case *tcell.EventKey:
+			editorEvent.IsKey = true
+			editorEvent.Key = event.Key()
+			editorEvent.Rune = event.Rune()
+		case *tcell.EventResize:
+			editorEvent.IsKey = false
+			editorEvent.Width, editorEvent.Height = event.Size()
+		}
+
+		err := enc.Encode(editorEvent)
 		if err != nil {
-			log.Printf("Error reading from connection: %v", err)
 			return
+		}
+
+		// update state based on new event
+		switch event := event.(type) {
+		case *tcell.EventKey:
+
+			key := event.Key()
+
+			if editor.Mode == backend.Insert {
+				if key == tcell.KeyEscape {
+					editor.ToNormal()
+				} else if key == tcell.KeyEnter {
+					editor.InsertRune('\n')
+				} else if key == tcell.KeyRight {
+					editor.ShiftCursor(0, 1, false, false)
+				} else if key == tcell.KeyLeft {
+					editor.ShiftCursor(0, -1, false, false)
+				} else if key == tcell.KeyUp {
+					editor.ShiftCursor(-1, 0, false, false)
+				} else if key == tcell.KeyDown {
+					editor.ShiftCursor(1, 0, false, false)
+				} else if key == tcell.KeyRune {
+					editor.InsertRune(event.Rune())
+				} else if key == tcell.KeyBackspace2 {
+					editor.Backspace()
+				}
+			} else if editor.Mode == backend.Normal {
+				if key == tcell.KeyRune {
+					keyVal := event.Rune()
+					switch keyVal {
+					case rune('q'):
+            conn.Close()
+						return
+
+						// switch mode
+					case rune('a'):
+						editor.ToInsert(true)
+					case rune('i'):
+						editor.ToInsert(false)
+
+						// basic movement keys
+					case rune('j'):
+						editor.ShiftCursor(1, 0, false, false)
+					case rune('k'):
+						editor.ShiftCursor(-1, 0, false, false)
+					case rune('h'):
+						editor.ShiftCursor(0, -1, false, false)
+					case rune('l'):
+						editor.ShiftCursor(0, 1, false, false)
+					}
+				} else if key == tcell.KeyRight {
+					editor.ShiftCursor(0, 1, false, false)
+				} else if key == tcell.KeyLeft {
+					editor.ShiftCursor(0, -1, false, false)
+				} else if key == tcell.KeyUp {
+					editor.ShiftCursor(-1, 0, false, false)
+				} else if key == tcell.KeyDown {
+					editor.ShiftCursor(1, 0, false, false)
+				}
+			}
+
+		case *tcell.EventResize:
+			editor.ScreenWidth, editor.ScreenHeight = event.Size()
 		}
 	}
 }
@@ -118,38 +234,13 @@ func localFileEdit(fileName string) {
 	defer quit()
 
 	for {
-		// edit content based on new state
-		screen.Clear()
-
-		// render content
-		maxRowDigits := 2
-		i, row, col := 0, 0, 0
-		editorContent := editor.GetContent()
-		printLineNum(screen, &row, &col, 2, lineNumStyle)
-		for i < editor.Length() && row < editor.ScreenHeight-1 {
-			r := editorContent[i]
-			if r == '\n' {
-				row = row + 1
-				col = 0
-
-				printLineNum(screen, &row, &col, maxRowDigits, lineNumStyle)
-			} else {
-				screen.SetContent(col, row, r, nil, defStyle)
-				col += 1
-			}
-			i += 1
-		}
-
-		statusBar := editor.GetStatusBar()
-		row = editor.ScreenHeight - 1
-		for col, r := range statusBar {
-			screen.SetContent(col, row, r, nil, statusBarStyle)
-		}
-
-		screen.ShowCursor(maxRowDigits+2+editor.Cursor.Col, editor.Cursor.Row)
-
-		// show new buffer
-		screen.Show()
+		renderEditor(
+			screen,
+			editor,
+			defStyle,
+			lineNumStyle,
+			statusBarStyle,
+		)
 
 		// poll for new event
 		event := screen.PollEvent()
@@ -218,6 +309,45 @@ func localFileEdit(fileName string) {
 	}
 }
 
+func renderEditor(
+	screen tcell.Screen,
+	editor backend.Editor,
+	defStyle tcell.Style,
+	lineNumStyle tcell.Style,
+	statusBarStyle tcell.Style,
+) {
+	screen.Clear()
+
+	maxRowDigits := 2
+	i, row, col := 0, 0, 0
+	editorContent := editor.GetContent()
+	printLineNum(screen, &row, &col, 2, lineNumStyle)
+	for i < editor.Content.Length && row < editor.ScreenHeight-1 {
+		r := editorContent[i]
+		if r == '\n' {
+			row = row + 1
+			col = 0
+
+			printLineNum(screen, &row, &col, maxRowDigits, lineNumStyle)
+		} else {
+			screen.SetContent(col, row, r, nil, defStyle)
+			col += 1
+		}
+		i += 1
+	}
+
+	statusBar := editor.GetStatusBar()
+	row = editor.ScreenHeight - 1
+	for col, r := range statusBar {
+		screen.SetContent(col, row, r, nil, statusBarStyle)
+	}
+
+	screen.ShowCursor(maxRowDigits+2+editor.Cursor.Col, editor.Cursor.Row)
+
+	// show new buffer
+	screen.Show()
+}
+
 func main() {
 	var fileName string
 
@@ -233,7 +363,10 @@ func main() {
 		remoteHost := flag.Arg(0) // remote host and port
 		fileName = flag.Arg(1)    // file name
 
-		tcpFileEdit(remoteHost)
+		log.Println("remoteHost: ", remoteHost)
+		log.Println("fileName: ", fileName)
+
+		tcpFileEdit(remoteHost, fileName)
 		os.Exit(0)
 	} else {
 		if len(flag.Args()) < 1 {

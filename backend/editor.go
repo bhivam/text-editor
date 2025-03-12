@@ -14,40 +14,16 @@ const (
 )
 
 type Editor struct {
-	content *Content
-	cursor  *Cursor
+	Content *Content
+	Cursor  *Cursor
 
-	screenHeight int
-	screenWidth  int
+	ScreenHeight int
+	ScreenWidth  int
 
 	filePath string
 	fileName string
 
-	mode EditorMode
-}
-
-func (editor *Editor) Length() int {
-  return editor.content.length
-}
-
-func (editor *Editor) ScreenHeight() int {
-  return editor.screenHeight;
-}
-
-func (editor *Editor) SetScreenHeight(height int) {
-  editor.screenHeight = height;
-}
-
-func (editor *Editor) ScreenWidth() int {
-  return editor.screenWidth;
-}
-
-func (editor *Editor) SetScreenWidth(width int) {
-  editor.screenWidth = width;
-}
-
-func (editor *Editor) Mode() EditorMode {
-  return editor.mode
+	Mode EditorMode
 }
 
 func (editor *Editor) SaveContent() {
@@ -61,19 +37,19 @@ func (editor *Editor) SaveContent() {
 func InitializeEditor(path string, screenHeight int, screenWidth int) Editor {
 	fileName := filepath.Base(path)
 
-	cursor := Cursor{index: 0, row: 0, col: 0}
+	cursor := Cursor{Index: 0, Row: 0, Col: 0}
 
 	content := Content{}
 	content.loadFromFile(path)
 
 	editor := Editor{
-		content:       &content,
-		cursor:        &cursor,
+		Content:      &content,
+		Cursor:       &cursor,
 		filePath:     path,
 		fileName:     fileName,
-		mode:          Normal,
-		screenHeight: screenHeight,
-		screenWidth:  screenWidth,
+		Mode:         Normal,
+		ScreenHeight: screenHeight,
+		ScreenWidth:  screenWidth,
 	}
 
 	return editor
@@ -87,8 +63,8 @@ func (editor *Editor) ShiftCursor(
 ) {
 	// TODO cursor should not be able to go to last index for normal mode
 
-	newRow := editor.cursor.row + rowOffset
-	newCol := editor.cursor.col + colOffset
+	newRow := editor.Cursor.Row + rowOffset
+	newCol := editor.Cursor.Col + colOffset
 	newIndex := -1
 
 	if newRow < 0 {
@@ -102,16 +78,16 @@ func (editor *Editor) ShiftCursor(
 	if newRow <= 0 && newCol <= 0 && !lastCol {
 		newIndex = 0
 
-		editor.cursor.row = newRow
-		editor.cursor.col = newCol
-		editor.cursor.index = newIndex
+		editor.Cursor.Row = newRow
+		editor.Cursor.Col = newCol
+		editor.Cursor.Index = newIndex
 
 		return
 	}
 
 	index, row, col := 0, 0, 0
 
-	for _, r := range editor.content.calculateContent() {
+	for _, r := range editor.Content.calculateContent() {
 
 		if newRow == row && r == '\n' && (newCol > col || lastCol) {
 			newCol = col
@@ -135,31 +111,20 @@ func (editor *Editor) ShiftCursor(
 	if newIndex == -1 {
 		newRow = row
 		newCol = col
-		newIndex = editor.content.length
+		newIndex = editor.Content.Length
 	}
 
-	editor.cursor.row = newRow
-	editor.cursor.col = newCol
-	editor.cursor.index = newIndex
+	editor.Cursor.Row = newRow
+	editor.Cursor.Col = newCol
+	editor.Cursor.Index = newIndex
 }
 
-func (editor *Editor) CursorRow() int {
-  return editor.cursor.row
-}
-
-func (editor *Editor) CursorCol() int {
-  return editor.cursor.col
-}
-
-func (editor *Editor) CursorIndex() int {
-	return editor.cursor.index
-}
 
 func (editor *Editor) InsertRune(r rune) {
-	editor.content.replace(
+	editor.Content.replace(
 		[]rune{r},
-		editor.CursorIndex(),
-		editor.CursorIndex(),
+		editor.Cursor.Index,
+		editor.Cursor.Index,
 	)
 	if r == rune('\n') {
 		editor.ShiftCursor(1, 0, true, false)
@@ -169,12 +134,12 @@ func (editor *Editor) InsertRune(r rune) {
 }
 
 func (editor *Editor) Backspace() {
-	delIdx := editor.CursorIndex() - 1
+	delIdx := editor.Cursor.Index - 1
 	if delIdx < 0 {
 		return
 	}
 
-	r := editor.content.calculateContent()[delIdx]
+	r := editor.Content.calculateContent()[delIdx]
 
 	if r == rune('\n') {
 		editor.ShiftCursor(-1, 0, false, true)
@@ -182,23 +147,23 @@ func (editor *Editor) Backspace() {
 		editor.ShiftCursor(0, -1, false, false)
 	}
 
-	if editor.CursorIndex() >= 0 {
-		editor.content.replace([]rune{}, delIdx, delIdx+1)
+	if editor.Cursor.Index >= 0 {
+		editor.Content.replace([]rune{}, delIdx, delIdx+1)
 	}
 }
 
 // maybe consume as list of lines for rendering since all in memory in anyways?
 func (editor *Editor) GetContent() []rune {
-	return editor.content.calculateContent()
+	return editor.Content.calculateContent()
 }
 
 func (editor *Editor) GetStatusBar() []rune {
-	row, col := editor.cursor.row, editor.cursor.col
+	row, col := editor.Cursor.Row, editor.Cursor.Col
 
 	leftContent := []rune(" ")
-	if editor.mode == Normal {
+	if editor.Mode == Normal {
 		leftContent = append(leftContent, []rune("NORMAL")...)
-	} else if editor.mode == Insert {
+	} else if editor.Mode == Insert {
 		leftContent = append(leftContent, []rune("INSERT")...)
 	}
 	leftContent = append(leftContent, rune(' '), rune('|'), rune(' '))
@@ -209,7 +174,7 @@ func (editor *Editor) GetStatusBar() []rune {
 	rightContent = append(rightContent, []rune(strconv.FormatInt(int64(col), 10))...)
 	rightContent = append(rightContent, rune(' '))
 
-	spaceBetween := editor.screenWidth - len(leftContent) - len(rightContent)
+	spaceBetween := editor.ScreenWidth - len(leftContent) - len(rightContent)
 
 	if spaceBetween < 1 {
 		return []rune{}
@@ -226,12 +191,12 @@ func (editor *Editor) GetStatusBar() []rune {
 
 func (editor *Editor) ToNormal() {
 	editor.ShiftCursor(0, -1, false, false)
-	editor.mode = Normal 
+	editor.Mode = Normal
 }
 
 func (editor *Editor) ToInsert(after bool) {
 	if after {
 		editor.ShiftCursor(0, 1, false, false)
 	}
-	editor.mode = Insert 
+	editor.Mode = Insert
 }

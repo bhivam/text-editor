@@ -1,7 +1,7 @@
 here is some testing text
 
-N I cjhttps://stackoverflow.com/questions/23154898/break-up-go-
+N cjhttps://stackoverflow.com/questions/23154898/break-up-go-
 https://stackoverflow.com/quq
 
 
-https://stackoverflow.com/questions/23154898/break-up-go-project-into-subfoldershttps://stackoverfl
+https://stackoverflow.com/questions/23154898/break-up-go-project-into-subfoldershttps://stackover

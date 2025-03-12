@@ -14,19 +14,19 @@ const (
 )
 
 type Piece struct {
-	start  int
-	length int
-	kind   PieceType
-	next   *Piece
+	Start  int
+	Length int
+	Kind   PieceType
+	Next   *Piece
 }
 
 type Content struct {
-	original    []rune
-	add         []rune
-	contentRoot *Piece
-	length      int
+	Original    []rune
+	Add         []rune
+	ContentRoot *Piece
+	Length      int
 	lastEdit    int64
-	numPieces   int
+	NumPieces   int
 }
 
 func (content *Content) loadFromFile(path string) {
@@ -43,19 +43,19 @@ func (content *Content) loadFromFile(path string) {
 		fileContent = append(fileContent, r)
 	}
 
-	content.original = fileContent
-	content.add = []rune{}
+	content.Original = fileContent
+	content.Add = []rune{}
 
 	originalPiece := Piece{
-		start:  0,
-		length: len(fileContent) - 1,
-		kind:   original,
-		next:   nil,
+		Start:  0,
+		Length: len(fileContent) - 1,
+		Kind:   original,
+		Next:   nil,
 	}
 
-	content.length = originalPiece.length
-	content.contentRoot = &originalPiece
-	content.numPieces = 1
+	content.Length = originalPiece.Length
+	content.ContentRoot = &originalPiece
+	content.NumPieces = 1
 }
 
 func (content *Content) undo() {
@@ -82,90 +82,90 @@ func (content *Content) replace(r []rune, start int, end int) {
 	content.lastEdit = currentTime
 
 	newPiece := Piece{
-		start:  len(content.add),
-		length: len(r),
-		kind:   add,
-		next:   nil,
+		Start:  len(content.Add),
+		Length: len(r),
+		Kind:   add,
+		Next:   nil,
 	}
 
 	if len(r) > 0 {
-		content.add = append(content.add, r...)
+		content.Add = append(content.Add, r...)
 	}
 
 	// CASE 1: no content
-	if content.contentRoot == nil {
+	if content.ContentRoot == nil {
 		// assert start == 0 and end == 0
-		content.contentRoot = &newPiece
-		content.length = newPiece.length
+		content.ContentRoot = &newPiece
+		content.Length = newPiece.Length
 		return
 	}
 
 	// CASE 2: prepend
 	if start == 0 && end == 0 {
-		newPiece.next = content.contentRoot
-		content.contentRoot = &newPiece
-		content.length = content.length + newPiece.length
+		newPiece.Next = content.ContentRoot
+		content.ContentRoot = &newPiece
+		content.Length = content.Length + newPiece.Length
 		return
 	}
 
 	// CASE 3: prepend
-	if start == content.length && end == content.length {
-		piece := content.contentRoot
+	if start == content.Length && end == content.Length {
+		piece := content.ContentRoot
 		for {
-			if piece.next == nil {
+			if piece.Next == nil {
 				break
 			}
-			piece = piece.next
+			piece = piece.Next
 		}
 
-		piece.next = &newPiece
-		content.length = content.length + newPiece.length
+		piece.Next = &newPiece
+		content.Length = content.Length + newPiece.Length
 		return
 	}
 
 	// CASE 4: inserting
 	if start == end {
 		pieceStart := 0
-		for piece := content.contentRoot; piece != nil; piece = piece.next {
-			pieceEnd := pieceStart + piece.length
+		for piece := content.ContentRoot; piece != nil; piece = piece.Next {
+			pieceEnd := pieceStart + piece.Length
 
-			if coalesce && piece.kind == add &&
-				piece.start+piece.length == newPiece.start &&
+			if coalesce && piece.Kind == add &&
+				piece.Start+piece.Length == newPiece.Start &&
 				pieceEnd == start {
 
-				piece.length += newPiece.length
-				content.length += newPiece.length
+				piece.Length += newPiece.Length
+				content.Length += newPiece.Length
 				return
 			}
 
 			if pieceEnd == start {
-				temp := piece.next
-				piece.next = &newPiece
-				newPiece.next = temp
-				content.length = content.length + newPiece.length
+				temp := piece.Next
+				piece.Next = &newPiece
+				newPiece.Next = temp
+				content.Length = content.Length + newPiece.Length
 				return
 			} else if pieceStart < start && start < pieceEnd {
 				pl := Piece{
-					start:  piece.start,
-					length: start - pieceStart,
-					kind:   piece.kind,
-					next:   nil,
+					Start:  piece.Start,
+					Length: start - pieceStart,
+					Kind:   piece.Kind,
+					Next:   nil,
 				}
 				pr := Piece{
-					start:  pl.start + pl.length,
-					length: piece.length - pl.length,
-					kind:   piece.kind,
-					next:   nil,
+					Start:  pl.Start + pl.Length,
+					Length: piece.Length - pl.Length,
+					Kind:   piece.Kind,
+					Next:   nil,
 				}
 
-				temp := piece.next
-				piece.start = pl.start
-				piece.length = pl.length
-				piece.next = &newPiece
-				newPiece.next = &pr
-				pr.next = temp
+				temp := piece.Next
+				piece.Start = pl.Start
+				piece.Length = pl.Length
+				piece.Next = &newPiece
+				newPiece.Next = &pr
+				pr.Next = temp
 
-				content.length = content.length + newPiece.length
+				content.Length = content.Length + newPiece.Length
 				return
 			}
 
@@ -177,40 +177,40 @@ func (content *Content) replace(r []rune, start int, end int) {
 	// delete stuff first, recursion to insert
 	pieceStart := 0
 	var prev *Piece = nil
-	for piece := content.contentRoot; piece != nil; piece = piece.next {
+	for piece := content.ContentRoot; piece != nil; piece = piece.Next {
 
-		pieceEnd := pieceStart + piece.length
+		pieceEnd := pieceStart + piece.Length
 
 		if pieceStart < start && end < pieceEnd {
 			// fmt.Println("going 1")
-			content.length -= piece.length
+			content.Length -= piece.Length
 
 			// set up right piece
 			pr := &Piece{
-				start:  piece.start + end - pieceStart,
-				length: pieceEnd - end,
-				kind:   piece.kind,
-				next:   piece.next,
+				Start:  piece.Start + end - pieceStart,
+				Length: pieceEnd - end,
+				Kind:   piece.Kind,
+				Next:   piece.Next,
 			}
 
 			// set up left piece
-			piece.length = start - pieceStart
-			piece.next = pr
+			piece.Length = start - pieceStart
+			piece.Next = pr
 
-			content.length += piece.length + pr.length
+			content.Length += piece.Length + pr.Length
 			break
 		}
 
 		if pieceStart >= start && end >= pieceEnd {
 			// fmt.Println("going 2")
 			// fmt.Printf("%d %d %d %d\n", start, end, piece_start, piece_end)
-			content.length -= piece.length
+			content.Length -= piece.Length
 			if prev == nil {
-				content.contentRoot = content.contentRoot.next
+				content.ContentRoot = content.ContentRoot.Next
 			} else {
-				prev.next = piece.next
+				prev.Next = piece.Next
 			}
-			piece = content.contentRoot
+			piece = content.ContentRoot
 			prev = nil
 
 			if pieceEnd == end {
@@ -221,27 +221,27 @@ func (content *Content) replace(r []rune, start int, end int) {
 
 		} else if pieceStart >= start && end > pieceStart && end < pieceEnd {
 			// fmt.Println("going 3")
-			content.length -= piece.length
-			piece.start = piece.start + end - start
-			piece.length = pieceEnd - end
+			content.Length -= piece.Length
+			piece.Start = piece.Start + end - start
+			piece.Length = pieceEnd - end
 
-			content.length += piece.length
+			content.Length += piece.Length
 			if pieceStart == start {
 				break
 			}
 
-			pieceEnd = pieceStart + piece.length
+			pieceEnd = pieceStart + piece.Length
 		} else if end >= pieceEnd && start > pieceStart && start < pieceEnd {
 			// fmt.Println("going 4")
-			content.length -= piece.length
-			piece.length = start - pieceStart
+			content.Length -= piece.Length
+			piece.Length = start - pieceStart
 
-			content.length += piece.length
+			content.Length += piece.Length
 			if pieceEnd == end {
 				break
 			}
 
-			pieceEnd = pieceStart + piece.length
+			pieceEnd = pieceStart + piece.Length
 		}
 
 		pieceStart = pieceEnd
@@ -254,7 +254,7 @@ func (content *Content) replace(r []rune, start int, end int) {
 }
 
 func (content *Content) printPieces() {
-	for piece := content.contentRoot; piece != nil; piece = piece.next {
+	for piece := content.ContentRoot; piece != nil; piece = piece.Next {
 		fmt.Println(piece)
 	}
 }
@@ -263,22 +263,22 @@ func (content *Content) calculateContent() []rune {
 	finalString := []rune{}
 	numPieces := 0
 
-	for piece := content.contentRoot; piece != nil; piece = piece.next {
+	for piece := content.ContentRoot; piece != nil; piece = piece.Next {
 		var pieceString []rune = []rune{}
 
 		// TODO Put this as a function of piece
-		start := piece.start
-		end := piece.start + piece.length
-		if piece.kind == add {
-			pieceString = content.add[start:end]
-		} else if piece.kind == original {
-			pieceString = content.original[start:end]
+		start := piece.Start
+		end := piece.Start + piece.Length
+		if piece.Kind == add {
+			pieceString = content.Add[start:end]
+		} else if piece.Kind == original {
+			pieceString = content.Original[start:end]
 		}
 
 		finalString = append(finalString, pieceString...)
 		numPieces += 1
 	}
-	content.numPieces = numPieces
+	content.NumPieces = numPieces
 
 	return finalString
 }

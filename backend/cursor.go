@@ -1,8 +1,8 @@
 package backend
 
 type Cursor struct {
-	index     int
-	row       int
-	col       int
-	atNewLine bool
+	Index     int
+	Row       int
+	Col       int
+	AtNewLine bool
 }
