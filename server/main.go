@@ -31,8 +31,8 @@ type EditorEvent struct {
 }
 
 type IndividualEditorState struct {
-	editorStatePub chan backend.Editor
-	editor         backend.Editor
+	editor backend.Editor
+	enc    *json.Encoder
 }
 
 type FileEditSession struct {
@@ -44,16 +44,14 @@ type FileEditSession struct {
 var fileEditSessions map[string]*FileEditSession = make(map[string]*FileEditSession)
 var sessionsMu sync.RWMutex
 
-func editorSubscribe(initArgs InitArgs) (*FileEditSession, string, *IndividualEditorState) {
+func editorSubscribe(initArgs InitArgs, enc *json.Encoder) (*FileEditSession, string, *IndividualEditorState) {
 	clientID := uuid.New().String()
-	newEditorStatePub := make(chan backend.Editor, 10) // buffered channel
 
 	sessionsMu.Lock()
 	defer sessionsMu.Unlock()
 
 	if fileEditSession, ok := fileEditSessions[initArgs.FilePath]; ok {
 		individualEditorState := &IndividualEditorState{
-			editorStatePub: newEditorStatePub,
 			editor: backend.Editor{
 				Content:      fileEditSession.content,
 				Cursor:       &backend.Cursor{Index: 0, Row: 0, Col: 0},
@@ -63,6 +61,7 @@ func editorSubscribe(initArgs InitArgs) (*FileEditSession, string, *IndividualEd
 				ScreenWidth:  initArgs.ScreenWidth,
 				Mode:         backend.Normal,
 			},
+			enc: enc,
 		}
 
 		fileEditSession.mu.Lock()
@@ -81,8 +80,8 @@ func editorSubscribe(initArgs InitArgs) (*FileEditSession, string, *IndividualEd
 		)
 
 		individualEditorState := &IndividualEditorState{
-			editorStatePub: newEditorStatePub,
-			editor:         editor,
+			editor: editor,
+			enc:    enc,
 		}
 
 		fileEditSession := &FileEditSession{
@@ -108,10 +107,7 @@ func editorUnsubscribe(filePath string, clientID string) {
 		return
 	}
 
-	if state, exists := fileEditSession.editorStates[clientID]; exists {
-		close(state.editorStatePub)
-		delete(fileEditSession.editorStates, clientID)
-	}
+	delete(fileEditSession.editorStates, clientID)
 
 	log.Printf("Client %s unsubscribed from %s", clientID, filePath)
 }
@@ -131,38 +127,22 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	fileEditSession, clientID, thisClientEditorState := editorSubscribe(initArgs)
-	defer editorUnsubscribe(initArgs.FilePath, clientID)
+	fileEditSession, currClientID, thisClientEditorState := editorSubscribe(initArgs, enc)
+	defer editorUnsubscribe(initArgs.FilePath, currClientID)
 
 	editor := thisClientEditorState.editor
-
-	go func() {
-		for {
-			newEditor, ok := <-thisClientEditorState.editorStatePub
-			if !ok {
-				return
-			}
-
-			editor.Content = newEditor.Content
-
-			if err := enc.Encode(editor); err != nil {
-				log.Printf("Client %s: Error encoding in goroutine: %v", clientID, err)
-				return
-			}
-		}
-	}()
 
 	for {
 		event := EditorEvent{}
 		err := dec.Decode(&event)
 		if err != nil {
-			log.Printf("Client %s: Error reading from connection: %v", clientID, err)
+			log.Printf("Client %s: Error reading from connection: %v", currClientID, err)
 			return
 		}
 
 		// Handle exit message
 		if event.IsExit {
-			log.Printf("Client %s: Received exit message", clientID)
+			log.Printf("Client %s: Received exit message", currClientID)
 			return
 		}
 
@@ -170,7 +150,7 @@ func handleConnection(conn net.Conn) {
 			key := event.Key
 
 			if key == tcell.KeyRune {
-				fmt.Printf("Client %s sent '%c'\n", clientID, event.Rune)
+				fmt.Printf("Client %s sent '%c'\n", currClientID, event.Rune)
 			}
 
 			switch editor.Mode {
@@ -233,21 +213,14 @@ func handleConnection(conn net.Conn) {
 
 		// TODO prefer event reception time over arbitrary race
 		fileEditSession.mu.RLock()
-		for id, editorState := range fileEditSession.editorStates {
-			if id != clientID {
-				select {
-				case editorState.editorStatePub <- editor:
-				default:
-					log.Printf("Client %s: Channel full, skipping update", id)
-				}
+		for _, editorState := range fileEditSession.editorStates {
+			if err := editorState.enc.Encode(editorState.editor); err != nil {
+				log.Printf("Client %s: Error encoding in goroutine: %v", currClientID, err)
+				return
 			}
+			log.Printf("Client %s: Sent new editor state", currClientID)
 		}
 		fileEditSession.mu.RUnlock()
-
-		if err := enc.Encode(editor); err != nil {
-			log.Printf("Client %s: Error encoding to connection: %v", clientID, err)
-			return
-		}
 	}
 }
 
