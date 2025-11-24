@@ -6,8 +6,10 @@ import (
 	"log"
 	"net"
 	"path/filepath"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/google/uuid"
 
 	"github.com/bhivam/text-editor/backend"
 )
@@ -19,11 +21,13 @@ type InitArgs struct {
 }
 
 type EditorEvent struct {
-	IsKey  bool
-	Key    tcell.Key
-	Rune   rune
-	Width  int
-	Height int
+	DispatchTime int64
+	IsKey        bool
+	IsExit       bool
+	Key          tcell.Key
+	Rune         rune
+	Width        int
+	Height       int
 }
 
 type IndividualEditorState struct {
@@ -33,16 +37,22 @@ type IndividualEditorState struct {
 
 type FileEditSession struct {
 	content      *backend.Content
-	editorStates []IndividualEditorState
+	editorStates map[string]*IndividualEditorState
+	mu           sync.RWMutex
 }
 
 var fileEditSessions map[string]*FileEditSession = make(map[string]*FileEditSession)
+var sessionsMu sync.RWMutex
 
-func editorSubscribe(initArgs InitArgs) (*FileEditSession, IndividualEditorState) {
-	newEditorStatePub := make(chan backend.Editor)
+func editorSubscribe(initArgs InitArgs) (*FileEditSession, string, *IndividualEditorState) {
+	clientID := uuid.New().String()
+	newEditorStatePub := make(chan backend.Editor, 10) // buffered channel
+
+	sessionsMu.Lock()
+	defer sessionsMu.Unlock()
 
 	if fileEditSession, ok := fileEditSessions[initArgs.FilePath]; ok {
-		individualEditorState := IndividualEditorState{
+		individualEditorState := &IndividualEditorState{
 			editorStatePub: newEditorStatePub,
 			editor: backend.Editor{
 				Content:      fileEditSession.content,
@@ -55,12 +65,13 @@ func editorSubscribe(initArgs InitArgs) (*FileEditSession, IndividualEditorState
 			},
 		}
 
-		fileEditSession.editorStates = append(fileEditSession.editorStates, individualEditorState)
+		fileEditSession.mu.Lock()
+		fileEditSession.editorStates[clientID] = individualEditorState
+		fileEditSession.mu.Unlock()
 
-		return fileEditSession, individualEditorState
+		log.Printf("Client %s subscribed to %s", clientID, initArgs.FilePath)
+		return fileEditSession, clientID, individualEditorState
 	} else {
-		var editorStates []IndividualEditorState
-
 		log.Printf("Reading from %s %d", initArgs.FilePath, len(initArgs.FilePath))
 
 		editor := backend.InitializeEditor(
@@ -69,22 +80,40 @@ func editorSubscribe(initArgs InitArgs) (*FileEditSession, IndividualEditorState
 			initArgs.ScreenWidth,
 		)
 
-		individualEditorState := IndividualEditorState{
+		individualEditorState := &IndividualEditorState{
 			editorStatePub: newEditorStatePub,
 			editor:         editor,
 		}
 
-		editorStates = append(editorStates, individualEditorState)
-
-		fileEditSessions[initArgs.FilePath] = &FileEditSession{
+		fileEditSession := &FileEditSession{
 			content:      editor.Content,
-			editorStates: editorStates,
+			editorStates: make(map[string]*IndividualEditorState),
 		}
+		fileEditSession.editorStates[clientID] = individualEditorState
 
-		fileEditSession := fileEditSessions[initArgs.FilePath]
+		fileEditSessions[initArgs.FilePath] = fileEditSession
 
-		return fileEditSession, individualEditorState
+		log.Printf("Client %s subscribed to %s (new session)", clientID, initArgs.FilePath)
+		return fileEditSession, clientID, individualEditorState
 	}
+}
+
+func editorUnsubscribe(filePath string, clientID string) {
+	sessionsMu.RLock()
+	defer sessionsMu.RUnlock()
+
+	fileEditSession, ok := fileEditSessions[filePath]
+
+	if !ok {
+		return
+	}
+
+	if state, exists := fileEditSession.editorStates[clientID]; exists {
+		close(state.editorStatePub)
+		delete(fileEditSession.editorStates, clientID)
+	}
+
+	log.Printf("Client %s unsubscribed from %s", clientID, filePath)
 }
 
 func handleConnection(conn net.Conn) {
@@ -102,7 +131,8 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	editorSharedState, thisClientEditorState := editorSubscribe(initArgs)
+	fileEditSession, clientID, thisClientEditorState := editorSubscribe(initArgs)
+	defer editorUnsubscribe(initArgs.FilePath, clientID)
 
 	editor := thisClientEditorState.editor
 
@@ -116,18 +146,23 @@ func handleConnection(conn net.Conn) {
 			editor.Content = newEditor.Content
 
 			if err := enc.Encode(editor); err != nil {
-				log.Printf("Error encoding to connection in goroutine: %v", err)
+				log.Printf("Client %s: Error encoding in goroutine: %v", clientID, err)
 				return
 			}
 		}
 	}()
 
 	for {
-
 		event := EditorEvent{}
 		err := dec.Decode(&event)
 		if err != nil {
-			log.Printf("Error reading from connection: %v", err)
+			log.Printf("Client %s: Error reading from connection: %v", clientID, err)
+			return
+		}
+
+		// Handle exit message
+		if event.IsExit {
+			log.Printf("Client %s: Received exit message", clientID)
 			return
 		}
 
@@ -135,7 +170,7 @@ func handleConnection(conn net.Conn) {
 			key := event.Key
 
 			if key == tcell.KeyRune {
-				fmt.Printf("CLIENT SENT '%c'\n", event.Rune)
+				fmt.Printf("Client %s sent '%c'\n", clientID, event.Rune)
 			}
 
 			switch editor.Mode {
@@ -196,14 +231,21 @@ func handleConnection(conn net.Conn) {
 			editor.ScreenWidth, editor.ScreenHeight = event.Width, event.Height
 		}
 
-		for _, editorState := range editorSharedState.editorStates {
-			if editorState.editorStatePub != thisClientEditorState.editorStatePub {
-				editorState.editorStatePub <- editor
+		// TODO prefer event reception time over arbitrary race
+		fileEditSession.mu.RLock()
+		for id, editorState := range fileEditSession.editorStates {
+			if id != clientID {
+				select {
+				case editorState.editorStatePub <- editor:
+				default:
+					log.Printf("Client %s: Channel full, skipping update", id)
+				}
 			}
 		}
+		fileEditSession.mu.RUnlock()
 
 		if err := enc.Encode(editor); err != nil {
-			log.Printf("Error encoding to connection: %v", err)
+			log.Printf("Client %s: Error encoding to connection: %v", clientID, err)
 			return
 		}
 	}

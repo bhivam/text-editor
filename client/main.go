@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -20,11 +21,13 @@ type InitArgs struct {
 }
 
 type EditorEvent struct {
-	IsKey  bool
-	Key    tcell.Key
-	Rune   rune
-	Width  int
-	Height int
+	DispatchTime int64
+	IsKey        bool
+	IsExit       bool
+	Key          tcell.Key
+	Rune         rune
+	Width        int
+	Height       int
 }
 
 func printLineNum(
@@ -41,7 +44,7 @@ func printLineNum(
 	}
 	screen.SetContent(*col, *row, rune(' '), nil, lineNumStyle)
 	*col += 1
-	for i := 0; i < numDigits; i++ {
+	for i := range numDigits {
 		screen.SetContent(*col, *row, nums[i], nil, lineNumStyle)
 		*col += 1
 	}
@@ -64,6 +67,7 @@ func tcpFileEdit(remoteHost string, fileName string) {
 	if err := screen.Init(); err != nil {
 		log.Fatalf("%+v", err)
 	}
+	defer screen.Fini()
 
 	initScreenWidth, initScreenHeight := screen.Size()
 
@@ -114,6 +118,7 @@ func tcpFileEdit(remoteHost string, fileName string) {
 		event := screen.PollEvent()
 
 		editorEvent := EditorEvent{}
+		editorEvent.DispatchTime = time.Now().UnixNano()
 		switch event := event.(type) {
 		case *tcell.EventKey:
 			editorEvent.IsKey = true
@@ -132,7 +137,9 @@ func tcpFileEdit(remoteHost string, fileName string) {
 		// Handle quit locally since we need to close connection
 		if event, ok := event.(*tcell.EventKey); ok {
 			if editor.Mode == backend.Normal && event.Key() == tcell.KeyRune && event.Rune() == 'q' {
-				conn.Close()
+				// Send exit message to server
+				exitEvent := EditorEvent{IsExit: true}
+				enc.Encode(exitEvent)
 				return
 			}
 		}
