@@ -118,7 +118,7 @@ func tcpFileEdit(remoteHost string, fileName string) {
 		event := screen.PollEvent()
 
 		editorEvent := EditorEvent{}
-		editorEvent.DispatchTime = time.Now().UnixNano()
+		editorEvent.DispatchTime = time.Now().UnixMilli()
 		switch event := event.(type) {
 		case *tcell.EventKey:
 			editorEvent.IsKey = true

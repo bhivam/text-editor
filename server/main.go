@@ -36,13 +36,24 @@ type IndividualEditorState struct {
 }
 
 type FileEditSession struct {
-	content      *backend.Content
-	editorStates map[string]*IndividualEditorState
-	mu           sync.RWMutex
+	content       *backend.Content
+	editorStates  map[string]*IndividualEditorState
+	clientEventCh chan EditorEvent
+	mu            sync.RWMutex
 }
 
 var fileEditSessions map[string]*FileEditSession = make(map[string]*FileEditSession)
 var sessionsMu sync.RWMutex
+
+func processClientEvents(fileEditSession *FileEditSession) {
+	// TODO initiate our queue
+
+	for {
+		clientEvent := <-fileEditSession.clientEventCh
+
+		log.Printf("Client Event Received: %+v", clientEvent)
+	}
+}
 
 func editorSubscribe(initArgs InitArgs, enc *json.Encoder) (*FileEditSession, string, *IndividualEditorState) {
 	clientID := uuid.New().String()
@@ -71,8 +82,6 @@ func editorSubscribe(initArgs InitArgs, enc *json.Encoder) (*FileEditSession, st
 		log.Printf("Client %s subscribed to %s", clientID, initArgs.FilePath)
 		return fileEditSession, clientID, individualEditorState
 	} else {
-		log.Printf("Reading from %s %d", initArgs.FilePath, len(initArgs.FilePath))
-
 		editor := backend.InitializeEditor(
 			initArgs.FilePath,
 			initArgs.ScreenHeight,
@@ -85,14 +94,18 @@ func editorSubscribe(initArgs InitArgs, enc *json.Encoder) (*FileEditSession, st
 		}
 
 		fileEditSession := &FileEditSession{
-			content:      editor.Content,
-			editorStates: make(map[string]*IndividualEditorState),
+			content:       editor.Content,
+			editorStates:  make(map[string]*IndividualEditorState),
+			clientEventCh: make(chan EditorEvent, 10),
 		}
 		fileEditSession.editorStates[clientID] = individualEditorState
 
 		fileEditSessions[initArgs.FilePath] = fileEditSession
 
 		log.Printf("Client %s subscribed to %s (new session)", clientID, initArgs.FilePath)
+
+		go processClientEvents(fileEditSession)
+
 		return fileEditSession, clientID, individualEditorState
 	}
 }
@@ -145,6 +158,8 @@ func handleConnection(conn net.Conn) {
 			log.Printf("Client %s: Received exit message", currClientID)
 			return
 		}
+
+		fileEditSession.clientEventCh <- event
 
 		if event.IsKey {
 			key := event.Key

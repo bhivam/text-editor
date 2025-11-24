@@ -4,9 +4,15 @@
 - Undo/Redo
 - Modifiers
 - Copy/Cut/Paste
+- Saving
+- File Exploration
+- More Editor Commands
 
 ## TCP Server
 It is certainly true that you will need one routine for each connection. This routine will block on the TCP JSON decode and wait for data to stream in. I also have a second routine for every connection that reads in editor state data and then publishes it to the it's corresponding client.
+
+Use some TCP Websocket gateway to allow for browser based editors to join the fun
+Implement a browser client that uses server for actual functionality. For optimistic updating, maybe compile the go editor backend to WASM?
 
 There are two main fixes that I need:
 1. There is no authority on what edits happen in what order or for what happens in a conflict situation. If two clients send the server edits while their editors are in the same state, how do we resolve that. We also don't have any resolution for how insertions and deletions affect the cursors of other connections. 
@@ -15,3 +21,8 @@ There are two main fixes that I need:
   - Events need to come in with a time so that we can push them into a minheap and have the extra routine process them according to that timing.
 
 There are other things I'm not considering like assigning priorities to event types. If a client is quiting, we can process them quiting first and any of their other events after, for example. Resize events can always be clubbed into the next editor update and can certainly be dropped after the individual editor is updated if there are other events needing to be processed. Et cetera.
+
+Interesting things:
+- Create a headless client for testing purposes
+- Send clients each other's cursors and render them on screen in a different color
+- Enable a local model to do stuff in the editor as a separate user
