@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -14,7 +15,7 @@ import (
 type InitArgs struct {
 	ScreenHeight int
 	ScreenWidth  int
-	FileName     string
+	FilePath     string
 }
 
 type EditorEvent struct {
@@ -25,36 +26,64 @@ type EditorEvent struct {
 	Height int
 }
 
-type EditorSharedState struct {
-	editor          backend.Editor
-	editorStatePubs []chan backend.Editor
+type IndividualEditorState struct {
+	editorStatePub chan backend.Editor
+	editor         backend.Editor
 }
 
-var editors map[string]EditorSharedState = make(map[string]EditorSharedState)
+type FileEditSession struct {
+	content      *backend.Content
+	editorStates []IndividualEditorState
+}
 
-func editorSubscribe(initArgs InitArgs) (*EditorSharedState, chan backend.Editor) {
+var fileEditSessions map[string]*FileEditSession = make(map[string]*FileEditSession)
+
+func editorSubscribe(initArgs InitArgs) (*FileEditSession, IndividualEditorState) {
 	newEditorStatePub := make(chan backend.Editor)
 
-	if editorSharedState, ok := editors[initArgs.FileName]; ok {
-		editorSharedState.editorStatePubs = append(editorSharedState.editorStatePubs, newEditorStatePub)
-
-		return &editorSharedState, newEditorStatePub
-	} else {
-		var editorStatePubs []chan backend.Editor
-		editorStatePubs = append(editorStatePubs, newEditorStatePub)
-
-		editors[initArgs.FileName] = EditorSharedState{
-			editor: backend.InitializeEditor(
-				initArgs.FileName,
-				initArgs.ScreenHeight,
-				initArgs.ScreenWidth,
-			),
-			editorStatePubs: editorStatePubs,
+	if fileEditSession, ok := fileEditSessions[initArgs.FilePath]; ok {
+		individualEditorState := IndividualEditorState{
+			editorStatePub: newEditorStatePub,
+			editor: backend.Editor{
+				Content:      fileEditSession.content,
+				Cursor:       &backend.Cursor{Index: 0, Row: 0, Col: 0},
+				FilePath:     initArgs.FilePath,
+				FileName:     filepath.Base(initArgs.FilePath),
+				ScreenHeight: initArgs.ScreenHeight,
+				ScreenWidth:  initArgs.ScreenWidth,
+				Mode:         backend.Normal,
+			},
 		}
 
-		editorSharedState := editors[initArgs.FileName]
+		fileEditSession.editorStates = append(fileEditSession.editorStates, individualEditorState)
 
-		return &editorSharedState, newEditorStatePub
+		return fileEditSession, individualEditorState
+	} else {
+		var editorStates []IndividualEditorState
+
+		log.Printf("Reading from %s %d", initArgs.FilePath, len(initArgs.FilePath))
+
+		editor := backend.InitializeEditor(
+			initArgs.FilePath,
+			initArgs.ScreenHeight,
+			initArgs.ScreenWidth,
+		)
+
+		individualEditorState := IndividualEditorState{
+			editorStatePub: newEditorStatePub,
+			editor:         editor,
+		}
+
+		editorStates = append(editorStates, individualEditorState)
+
+		fileEditSessions[initArgs.FilePath] = &FileEditSession{
+			content:      editor.Content,
+			editorStates: editorStates,
+		}
+
+		fileEditSession := fileEditSessions[initArgs.FilePath]
+
+		return fileEditSession, individualEditorState
 	}
 }
 
@@ -73,25 +102,34 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	editorSharedState, thisEditorStatePub := editorSubscribe(initArgs)
+	editorSharedState, thisClientEditorState := editorSubscribe(initArgs)
 
-	editor := editorSharedState.editor
-	editorStatePubs := editorSharedState.editorStatePubs
+	editor := thisClientEditorState.editor
 
 	go func() {
 		for {
-			editorState := <-thisEditorStatePub
-			err = enc.Encode(editorState)
+			newEditor, ok := <-thisClientEditorState.editorStatePub
+			if !ok {
+				return
+			}
+
+			editor.Content = newEditor.Content
+
+			if err := enc.Encode(editor); err != nil {
+				log.Printf("Error encoding to connection in goroutine: %v", err)
+				return
+			}
 		}
 	}()
 
 	for {
-		for _, editorStatePub := range editorStatePubs {
-			editorStatePub <- editor
-		}
 
 		event := EditorEvent{}
 		err := dec.Decode(&event)
+		if err != nil {
+			log.Printf("Error reading from connection: %v", err)
+			return
+		}
 
 		if event.IsKey {
 			key := event.Key
@@ -158,8 +196,14 @@ func handleConnection(conn net.Conn) {
 			editor.ScreenWidth, editor.ScreenHeight = event.Width, event.Height
 		}
 
-		if err != nil {
-			log.Printf("Error reading from connection: %v", err)
+		for _, editorState := range editorSharedState.editorStates {
+			if editorState.editorStatePub != thisClientEditorState.editorStatePub {
+				editorState.editorStatePub <- editor
+			}
+		}
+
+		if err := enc.Encode(editor); err != nil {
+			log.Printf("Error encoding to connection: %v", err)
 			return
 		}
 	}

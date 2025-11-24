@@ -20,15 +20,15 @@ type Editor struct {
 	ScreenHeight int
 	ScreenWidth  int
 
-	filePath string
-	fileName string
+	FilePath string
+	FileName string
 
 	Mode EditorMode
 }
 
 func (editor *Editor) SaveContent() {
 	string := string(editor.GetContent())
-	err := os.WriteFile(editor.filePath, []byte(string), 0644)
+	err := os.WriteFile(editor.FilePath, []byte(string), 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -45,8 +45,8 @@ func InitializeEditor(path string, screenHeight int, screenWidth int) Editor {
 	editor := Editor{
 		Content:      &content,
 		Cursor:       &cursor,
-		filePath:     path,
-		fileName:     fileName,
+		FilePath:     path,
+		FileName:     fileName,
 		Mode:         Normal,
 		ScreenHeight: screenHeight,
 		ScreenWidth:  screenWidth,
@@ -119,7 +119,6 @@ func (editor *Editor) ShiftCursor(
 	editor.Cursor.Index = newIndex
 }
 
-
 func (editor *Editor) InsertRune(r rune) {
 	editor.Content.replace(
 		[]rune{r},
@@ -167,7 +166,7 @@ func (editor *Editor) GetStatusBar() []rune {
 		leftContent = append(leftContent, []rune("INSERT")...)
 	}
 	leftContent = append(leftContent, rune(' '), rune('|'), rune(' '))
-	leftContent = append(leftContent, []rune(editor.fileName)...)
+	leftContent = append(leftContent, []rune(editor.FileName)...)
 
 	rightContent := []rune(strconv.FormatInt(int64(row), 10))
 	rightContent = append(rightContent, rune(':'))

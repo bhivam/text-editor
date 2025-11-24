@@ -16,7 +16,7 @@ import (
 type InitArgs struct {
 	ScreenHeight int
 	ScreenWidth  int
-	FileName     string
+	FilePath     string
 }
 
 type EditorEvent struct {
@@ -41,10 +41,10 @@ func printLineNum(
 	}
 	screen.SetContent(*col, *row, rune(' '), nil, lineNumStyle)
 	*col += 1
-	screen.SetContent(*col, *row, nums[0], nil, lineNumStyle)
-	*col += 1
-	screen.SetContent(*col, *row, nums[1], nil, lineNumStyle)
-	*col += 1
+	for i := 0; i < numDigits; i++ {
+		screen.SetContent(*col, *row, nums[i], nil, lineNumStyle)
+		*col += 1
+	}
 	screen.SetContent(*col, *row, rune(' '), nil, lineNumStyle)
 	*col += 1
 }
@@ -68,7 +68,7 @@ func tcpFileEdit(remoteHost string, fileName string) {
 	initScreenWidth, initScreenHeight := screen.Size()
 
 	initArgs := InitArgs{
-		FileName:     fileName,
+		FilePath:     fileName,
 		ScreenWidth:  initScreenWidth,
 		ScreenHeight: initScreenHeight,
 	}
@@ -103,7 +103,9 @@ func tcpFileEdit(remoteHost string, fileName string) {
 
 	go func() {
 		for {
-			dec.Decode(&editor)
+			if err := dec.Decode(&editor); err != nil {
+				return
+			}
 			renderEditor(screen, editor, defStyle, lineNumStyle, statusBarStyle)
 		}
 	}()
@@ -127,70 +129,12 @@ func tcpFileEdit(remoteHost string, fileName string) {
 			return
 		}
 
-		// update state based on new event
-		switch event := event.(type) {
-		case *tcell.EventKey:
-
-			key := event.Key()
-
-			switch editor.Mode {
-			case backend.Insert:
-				switch key {
-				case tcell.KeyEscape:
-					editor.ToNormal()
-				case tcell.KeyEnter:
-					editor.InsertRune('\n')
-				case tcell.KeyRight:
-					editor.ShiftCursor(0, 1, false, false)
-				case tcell.KeyLeft:
-					editor.ShiftCursor(0, -1, false, false)
-				case tcell.KeyUp:
-					editor.ShiftCursor(-1, 0, false, false)
-				case tcell.KeyDown:
-					editor.ShiftCursor(1, 0, false, false)
-				case tcell.KeyRune:
-					editor.InsertRune(event.Rune())
-				case tcell.KeyBackspace2:
-					editor.Backspace()
-				}
-			case backend.Normal:
-				switch key {
-				case tcell.KeyRune:
-					keyVal := event.Rune()
-					switch keyVal {
-					case rune('q'):
-						conn.Close()
-						return
-
-						// switch mode
-					case rune('a'):
-						editor.ToInsert(true)
-					case rune('i'):
-						editor.ToInsert(false)
-
-						// basic movement keys
-					case rune('j'):
-						editor.ShiftCursor(1, 0, false, false)
-					case rune('k'):
-						editor.ShiftCursor(-1, 0, false, false)
-					case rune('h'):
-						editor.ShiftCursor(0, -1, false, false)
-					case rune('l'):
-						editor.ShiftCursor(0, 1, false, false)
-					}
-				case tcell.KeyRight:
-					editor.ShiftCursor(0, 1, false, false)
-				case tcell.KeyLeft:
-					editor.ShiftCursor(0, -1, false, false)
-				case tcell.KeyUp:
-					editor.ShiftCursor(-1, 0, false, false)
-				case tcell.KeyDown:
-					editor.ShiftCursor(1, 0, false, false)
-				}
+		// Handle quit locally since we need to close connection
+		if event, ok := event.(*tcell.EventKey); ok {
+			if editor.Mode == backend.Normal && event.Key() == tcell.KeyRune && event.Rune() == 'q' {
+				conn.Close()
+				return
 			}
-
-		case *tcell.EventResize:
-			editor.ScreenWidth, editor.ScreenHeight = event.Size()
 		}
 	}
 }
@@ -222,7 +166,7 @@ func localFileEdit(fileName string) {
 	screen.EnablePaste()
 	screen.Clear()
 
-	initScreenHeight, initScreenWidth := screen.Size()
+	initScreenWidth, initScreenHeight := screen.Size()
 	editor := backend.InitializeEditor(fileName, initScreenHeight, initScreenWidth)
 
 	quit := func() {
