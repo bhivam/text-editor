@@ -13,6 +13,5 @@ There are two main fixes that I need:
   - We need to have n + 1 routines where the extra routine only processes events sent to it.
   - Events need to come with an editor hash so we can quickly determine what state the editor is in and see if there is a conflict between two events that needs to be merged somehow.
   - Events need to come in with a time so that we can push them into a minheap and have the extra routine process them according to that timing.
-2. During the fanout process I should be saving the connection object for each client session and just fanning out directly to the connection rather than publishing to a go channel. It just creates extra complexity
 
 There are other things I'm not considering like assigning priorities to event types. If a client is quiting, we can process them quiting first and any of their other events after, for example. Resize events can always be clubbed into the next editor update and can certainly be dropped after the individual editor is updated if there are other events needing to be processed. Et cetera.
