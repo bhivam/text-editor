@@ -1,4 +1,4 @@
-package backend 
+package backend
 
 import (
 	"fmt"
@@ -21,10 +21,10 @@ func runeCmp(a []rune, b []rune) bool {
 
 func TestReplace(t *testing.T) {
 	content := &Content{
-		original:     []rune{},
-		add:          []rune{},
-		contentRoot: nil,
-		length:       0,
+		Original:    []rune{},
+		Add:         []rune{},
+		ContentRoot: nil,
+		Length:      0,
 	}
 
 	addString := []rune("Hello world!")
@@ -50,16 +50,16 @@ func TestReplace(t *testing.T) {
 
 	finalString = content.calculateContent()
 
-	if !runeCmp(content.add, finalString) {
+	if !runeCmp(content.Add, finalString) {
 		t.Fatalf(
 			"\nFinal String: %s\nExpected String: %s",
-			string(content.add),
+			string(content.Add),
 			string(finalString),
 		)
 	} else {
 		t.Logf(
 			"\nFinal String: %s\nExpected String: %s",
-			string(content.add),
+			string(content.Add),
 			string(finalString),
 		)
 	}
@@ -68,16 +68,16 @@ func TestReplace(t *testing.T) {
 
 	finalString = content.calculateContent()
 
-	if !runeCmp(content.add, finalString) {
+	if !runeCmp(content.Add, finalString) {
 		t.Fatalf(
 			"\nFinal String: %s\nExpected String: %s",
-			string(content.add),
+			string(content.Add),
 			string(finalString),
 		)
 	} else {
 		t.Logf(
 			"\nFinal String: %s\nExpected String: %s",
-			string(content.add),
+			string(content.Add),
 			string(finalString),
 		)
 	}
@@ -127,10 +127,10 @@ func TestReplace(t *testing.T) {
 
 func TestReplaceRealistic(t *testing.T) {
 	content := &Content{
-		original:     []rune("hey"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 3, original, nil},
-		length:       3,
+		Original:    []rune("hey"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 3, original, nil},
+		Length:      3,
 	}
 
 	toAdd := []rune{'h'}
@@ -171,10 +171,10 @@ func TestReplaceRealistic(t *testing.T) {
 
 func TestReplaceDelete(t *testing.T) {
 	content := &Content{
-		original:     []rune("hey"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 3, original, nil},
-		length:       3,
+		Original:    []rune("hey"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 3, original, nil},
+		Length:      3,
 	}
 
 	content.replace([]rune{}, 0, 1)
@@ -196,10 +196,10 @@ func TestReplaceDelete(t *testing.T) {
 	}
 
 	content = &Content{
-		original:     []rune("hey"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 3, original, nil},
-		length:       3,
+		Original:    []rune("hey"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 3, original, nil},
+		Length:      3,
 	}
 
 	content.replace([]rune{}, 1, 2)
@@ -221,10 +221,10 @@ func TestReplaceDelete(t *testing.T) {
 	}
 
 	content = &Content{
-		original:     []rune("hey"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 3, original, nil},
-		length:       3,
+		Original:    []rune("hey"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 3, original, nil},
+		Length:      3,
 	}
 
 	content.replace([]rune{}, 2, 3)
@@ -248,10 +248,10 @@ func TestReplaceDelete(t *testing.T) {
 
 func TestReplaceRepeatDelete(t *testing.T) {
 	content := &Content{
-		original:     []rune("Hello, world!"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 13, original, nil},
-		length:       13,
+		Original:    []rune("Hello, world!"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 13, original, nil},
+		Length:      13,
 	}
 	content.replace([]rune{}, 0, 1)
 	content.replace([]rune{}, 0, 1)
@@ -261,10 +261,10 @@ func TestReplaceRepeatDelete(t *testing.T) {
 func TestReplaceAddDelete(t *testing.T) {
 	fmt.Println("MAIN TEST")
 	content := &Content{
-		original:     []rune("he\nre"),
-		add:          []rune{},
-		contentRoot: &Piece{0, 5, original, nil},
-		length:       5,
+		Original:    []rune("he\nre"),
+		Add:         []rune{},
+		ContentRoot: &Piece{0, 5, original, nil},
+		Length:      5,
 	}
 
 	content.printPieces()
