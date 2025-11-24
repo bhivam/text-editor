@@ -31,8 +31,7 @@ func printLineNum(
 	screen tcell.Screen,
 	row *int,
 	col *int,
-	numDigits int,
-	lineNumStyle tcell.Style,
+	numDigits int, lineNumStyle tcell.Style,
 ) {
 	nums := []rune(strconv.FormatInt(int64(*row), 10))
 	if len(nums) < numDigits {
@@ -59,6 +58,10 @@ func tcpFileEdit(remoteHost string, fileName string) {
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	if err := screen.Init(); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
@@ -91,10 +94,6 @@ func tcpFileEdit(remoteHost string, fileName string) {
 		Background(tcell.ColorFloralWhite).
 		Bold(true)
 
-	if err := screen.Init(); err != nil {
-		log.Fatalf("%+v", err)
-	}
-
 	screen.SetStyle(defStyle)
 	screen.EnableMouse()
 	screen.EnablePaste()
@@ -102,10 +101,14 @@ func tcpFileEdit(remoteHost string, fileName string) {
 
 	editor := backend.Editor{}
 
-	for {
-		dec.Decode(&editor)
-		renderEditor(screen, editor, defStyle, lineNumStyle, statusBarStyle)
+	go func() {
+		for {
+			dec.Decode(&editor)
+			renderEditor(screen, editor, defStyle, lineNumStyle, statusBarStyle)
+		}
+	}()
 
+	for {
 		event := screen.PollEvent()
 
 		editorEvent := EditorEvent{}
@@ -130,30 +133,33 @@ func tcpFileEdit(remoteHost string, fileName string) {
 
 			key := event.Key()
 
-			if editor.Mode == backend.Insert {
-				if key == tcell.KeyEscape {
+			switch editor.Mode {
+			case backend.Insert:
+				switch key {
+				case tcell.KeyEscape:
 					editor.ToNormal()
-				} else if key == tcell.KeyEnter {
+				case tcell.KeyEnter:
 					editor.InsertRune('\n')
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
-				} else if key == tcell.KeyRune {
+				case tcell.KeyRune:
 					editor.InsertRune(event.Rune())
-				} else if key == tcell.KeyBackspace2 {
+				case tcell.KeyBackspace2:
 					editor.Backspace()
 				}
-			} else if editor.Mode == backend.Normal {
-				if key == tcell.KeyRune {
+			case backend.Normal:
+				switch key {
+				case tcell.KeyRune:
 					keyVal := event.Rune()
 					switch keyVal {
 					case rune('q'):
-            conn.Close()
+						conn.Close()
 						return
 
 						// switch mode
@@ -172,13 +178,13 @@ func tcpFileEdit(remoteHost string, fileName string) {
 					case rune('l'):
 						editor.ShiftCursor(0, 1, false, false)
 					}
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
 				}
 			}
@@ -251,26 +257,29 @@ func localFileEdit(fileName string) {
 
 			key := event.Key()
 
-			if editor.Mode == backend.Insert {
-				if key == tcell.KeyEscape {
+			switch editor.Mode {
+			case backend.Insert:
+				switch key {
+				case tcell.KeyEscape:
 					editor.ToNormal()
-				} else if key == tcell.KeyEnter {
+				case tcell.KeyEnter:
 					editor.InsertRune('\n')
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
-				} else if key == tcell.KeyRune {
+				case tcell.KeyRune:
 					editor.InsertRune(event.Rune())
-				} else if key == tcell.KeyBackspace2 {
+				case tcell.KeyBackspace2:
 					editor.Backspace()
 				}
-			} else if editor.Mode == backend.Normal {
-				if key == tcell.KeyRune {
+			case backend.Normal:
+				switch key {
+				case tcell.KeyRune:
 					keyVal := event.Rune()
 					switch keyVal {
 					case rune('q'):
@@ -292,13 +301,13 @@ func localFileEdit(fileName string) {
 					case rune('l'):
 						editor.ShiftCursor(0, 1, false, false)
 					}
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
 				}
 			}

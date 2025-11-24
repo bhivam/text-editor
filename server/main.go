@@ -25,6 +25,39 @@ type EditorEvent struct {
 	Height int
 }
 
+type EditorSharedState struct {
+	editor          backend.Editor
+	editorStatePubs []chan backend.Editor
+}
+
+var editors map[string]EditorSharedState = make(map[string]EditorSharedState)
+
+func editorSubscribe(initArgs InitArgs) (*EditorSharedState, chan backend.Editor) {
+	newEditorStatePub := make(chan backend.Editor)
+
+	if editorSharedState, ok := editors[initArgs.FileName]; ok {
+		editorSharedState.editorStatePubs = append(editorSharedState.editorStatePubs, newEditorStatePub)
+
+		return &editorSharedState, newEditorStatePub
+	} else {
+		var editorStatePubs []chan backend.Editor
+		editorStatePubs = append(editorStatePubs, newEditorStatePub)
+
+		editors[initArgs.FileName] = EditorSharedState{
+			editor: backend.InitializeEditor(
+				initArgs.FileName,
+				initArgs.ScreenHeight,
+				initArgs.ScreenWidth,
+			),
+			editorStatePubs: editorStatePubs,
+		}
+
+		editorSharedState := editors[initArgs.FileName]
+
+		return &editorSharedState, newEditorStatePub
+	}
+}
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -40,14 +73,22 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	editor := backend.InitializeEditor(
-		initArgs.FileName,
-		initArgs.ScreenHeight,
-		initArgs.ScreenWidth,
-	)
+	editorSharedState, thisEditorStatePub := editorSubscribe(initArgs)
+
+	editor := editorSharedState.editor
+	editorStatePubs := editorSharedState.editorStatePubs
+
+	go func() {
+		for {
+			editorState := <-thisEditorStatePub
+			err = enc.Encode(editorState)
+		}
+	}()
 
 	for {
-		err = enc.Encode(editor)
+		for _, editorStatePub := range editorStatePubs {
+			editorStatePub <- editor
+		}
 
 		event := EditorEvent{}
 		err := dec.Decode(&event)
@@ -55,30 +96,33 @@ func handleConnection(conn net.Conn) {
 		if event.IsKey {
 			key := event.Key
 
-      if key == tcell.KeyRune {
-        fmt.Printf("CLIENT SENT '%c'\n", event.Rune)
-      }
+			if key == tcell.KeyRune {
+				fmt.Printf("CLIENT SENT '%c'\n", event.Rune)
+			}
 
-			if editor.Mode == backend.Insert {
-				if key == tcell.KeyEscape {
+			switch editor.Mode {
+			case backend.Insert:
+				switch key {
+				case tcell.KeyEscape:
 					editor.ToNormal()
-				} else if key == tcell.KeyEnter {
+				case tcell.KeyEnter:
 					editor.InsertRune('\n')
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
-				} else if key == tcell.KeyRune {
+				case tcell.KeyRune:
 					editor.InsertRune(event.Rune)
-				} else if key == tcell.KeyBackspace2 {
+				case tcell.KeyBackspace2:
 					editor.Backspace()
 				}
-			} else if editor.Mode == backend.Normal {
-				if key == tcell.KeyRune {
+			case backend.Normal:
+				switch key {
+				case tcell.KeyRune:
 					keyVal := event.Rune
 					switch keyVal {
 					case rune('q'):
@@ -100,13 +144,13 @@ func handleConnection(conn net.Conn) {
 					case rune('l'):
 						editor.ShiftCursor(0, 1, false, false)
 					}
-				} else if key == tcell.KeyRight {
+				case tcell.KeyRight:
 					editor.ShiftCursor(0, 1, false, false)
-				} else if key == tcell.KeyLeft {
+				case tcell.KeyLeft:
 					editor.ShiftCursor(0, -1, false, false)
-				} else if key == tcell.KeyUp {
+				case tcell.KeyUp:
 					editor.ShiftCursor(-1, 0, false, false)
-				} else if key == tcell.KeyDown {
+				case tcell.KeyDown:
 					editor.ShiftCursor(1, 0, false, false)
 				}
 			}
