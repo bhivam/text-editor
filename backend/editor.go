@@ -160,9 +160,10 @@ func (editor *Editor) GetStatusBar() []rune {
 	row, col := editor.Cursor.Row, editor.Cursor.Col
 
 	leftContent := []rune(" ")
-	if editor.Mode == Normal {
+	switch editor.Mode {
+	case Normal:
 		leftContent = append(leftContent, []rune("NORMAL")...)
-	} else if editor.Mode == Insert {
+	case Insert:
 		leftContent = append(leftContent, []rune("INSERT")...)
 	}
 	leftContent = append(leftContent, rune(' '), rune('|'), rune(' '))
