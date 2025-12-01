@@ -26,3 +26,5 @@ Interesting things:
 - Create a headless client for testing purposes
 - Send clients each other's cursors and render them on screen in a different color
 - Enable a local model to do stuff in the editor as a separate user
+
+What I want to do is see if I can implement my own buffered channel and turn it into a minheap.
